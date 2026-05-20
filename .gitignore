@@ -1,0 +1,15 @@
+.DS_Store
+.idea/
+.vscode/
+*.log
+
+# Directory-level ignore patterns (recursive)
+**/build/
+**/.dart_tool/
+**/.packages
+**/.pub-cache/
+**/.pub/
+**/Pods/
+**/*.dill
+**/*.cache
+**/Flutter.framework/
