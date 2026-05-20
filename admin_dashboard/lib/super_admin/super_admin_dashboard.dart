@@ -793,7 +793,7 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
   Widget _buildStatCard(
       String title, String value, String sub, IconData icon, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -811,26 +811,27 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   title,
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
-                  overflow: TextOverflow.ellipsis,
                   maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 12),
                 Text(
                   value,
                   style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                  overflow: TextOverflow.ellipsis,
                   maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 8),
                 Text(
                   sub,
                   style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12),
-                  overflow: TextOverflow.ellipsis,
                   maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
