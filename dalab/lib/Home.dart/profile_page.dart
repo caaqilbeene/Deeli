@@ -26,7 +26,7 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   // Support configuration (edit these variables to change your contact details)
-  final String whatsappNumber = "+252618455780";
+  final String whatsappNumber = "+252622843233";
   final String supportEmail = "caaqilbeene@gmail.com";
 
   final ImagePicker picker = ImagePicker();
@@ -51,17 +51,17 @@ class _ProfilePageState extends State<ProfilePage> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       profileName = prefs.getString('profile_name') ?? "Mohamed Ali";
-      
+
       final profPath = prefs.getString('profile_image_path');
       if (profPath != null && profPath.isNotEmpty) {
         localProfileImage = File(profPath);
       }
-      
+
       final bgPath = prefs.getString('background_image_path');
       if (bgPath != null && bgPath.isNotEmpty) {
         backgroundImage = File(bgPath);
       }
-      
+
       backgroundY = prefs.getDouble('background_y') ?? 0.0;
       selectedDistrict = prefs.getString('selected_district') ?? "Hodan";
       joinedDate = prefs.getString('joined_date') ?? "22 Apr, 2026";
@@ -75,7 +75,8 @@ class _ProfilePageState extends State<ProfilePage> {
           'id': user.uid,
           'phone': user.phoneNumber,
           'name': profileName,
-          'created_at': '2026-04-22T12:00:00Z', // Set to 22 April 2026 as requested!
+          'created_at':
+              '2026-04-22T12:00:00Z', // Set to 22 April 2026 as requested!
         });
       } catch (e) {
         print("Error syncing current user to Supabase: $e");
@@ -86,8 +87,6 @@ class _ProfilePageState extends State<ProfilePage> {
   String getTwitterHandle(String name) {
     return '@' + name.replaceAll(' ', '').toLowerCase();
   }
-
-
 
   @override
   void dispose() {
@@ -108,7 +107,7 @@ class _ProfilePageState extends State<ProfilePage> {
     setState(() {
       localProfileImage = File(image.path);
     });
-    
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('profile_image_path', image.path);
 
@@ -156,7 +155,9 @@ class _ProfilePageState extends State<ProfilePage> {
                     decoration: BoxDecoration(
                       color: Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(16),
-                      image: (backgroundImage == null || !backgroundImage!.existsSync())
+                      image:
+                          (backgroundImage == null ||
+                              !backgroundImage!.existsSync())
                           ? null
                           : DecorationImage(
                               image: FileImage(backgroundImage!),
@@ -307,10 +308,12 @@ class _ProfilePageState extends State<ProfilePage> {
               "Shangani",
               "Boondheere",
               "Heliwaa",
-              "Kahda"
+              "Kahda",
             ];
-            
-            final userPhone = FirebaseAuth.instance.currentUser?.phoneNumber ?? "Not Registered";
+
+            final userPhone =
+                FirebaseAuth.instance.currentUser?.phoneNumber ??
+                "Not Registered";
 
             return Padding(
               padding: EdgeInsets.only(
@@ -339,11 +342,15 @@ class _ProfilePageState extends State<ProfilePage> {
                     style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 24),
-                  
+
                   // Phone Number Display Section
                   Text(
                     "Taleefankaaga (Phone Number)",
-                    style: TextStyle(fontSize: 14, color: Colors.black54, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.black54,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   SizedBox(height: 8),
                   Container(
@@ -360,18 +367,26 @@ class _ProfilePageState extends State<ProfilePage> {
                         SizedBox(width: 12),
                         Text(
                           userPhone,
-                          style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.black87),
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  
+
                   SizedBox(height: 24),
-                  
+
                   // District Selection Section
                   Text(
                     "Dooro Degmadaada Muqdisho (District)",
-                    style: TextStyle(fontSize: 14, color: Colors.black54, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.black54,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   SizedBox(height: 8),
                   Container(
@@ -384,9 +399,14 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
-                        value: districts.contains(selectedDistrict) ? selectedDistrict : districts.first,
+                        value: districts.contains(selectedDistrict)
+                            ? selectedDistrict
+                            : districts.first,
                         isExpanded: true,
-                        icon: Icon(Icons.arrow_drop_down, color: Colors.deepOrange),
+                        icon: Icon(
+                          Icons.arrow_drop_down,
+                          color: Colors.deepOrange,
+                        ),
                         onChanged: (String? newValue) {
                           if (newValue != null) {
                             setState(() {
@@ -398,19 +418,24 @@ class _ProfilePageState extends State<ProfilePage> {
                             });
                           }
                         },
-                        items: districts.map<DropdownMenuItem<String>>((String value) {
+                        items: districts.map<DropdownMenuItem<String>>((
+                          String value,
+                        ) {
                           return DropdownMenuItem<String>(
                             value: value,
                             child: Text(
                               value,
-                              style: TextStyle(fontSize: 17, color: Colors.black87),
+                              style: TextStyle(
+                                fontSize: 17,
+                                color: Colors.black87,
+                              ),
                             ),
                           );
                         }).toList(),
                       ),
                     ),
                   ),
-                  
+
                   SizedBox(height: 32),
                   SizedBox(
                     width: double.infinity,
@@ -426,7 +451,10 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                       child: Text(
                         "Done",
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -457,14 +485,18 @@ class _ProfilePageState extends State<ProfilePage> {
                       height: 190,
                       width: double.infinity,
                       decoration: BoxDecoration(
-                        image: (backgroundImage == null || !backgroundImage!.existsSync())
+                        image:
+                            (backgroundImage == null ||
+                                !backgroundImage!.existsSync())
                             ? null
                             : DecorationImage(
                                 image: FileImage(backgroundImage!),
                                 fit: BoxFit.cover,
                                 alignment: Alignment(0, backgroundY),
                               ),
-                        gradient: (backgroundImage == null || !backgroundImage!.existsSync())
+                        gradient:
+                            (backgroundImage == null ||
+                                !backgroundImage!.existsSync())
                             ? LinearGradient(
                                 begin: Alignment.topCenter,
                                 end: Alignment.bottomCenter,
@@ -472,7 +504,9 @@ class _ProfilePageState extends State<ProfilePage> {
                               )
                             : null,
                       ),
-                      child: (backgroundImage == null || !backgroundImage!.existsSync())
+                      child:
+                          (backgroundImage == null ||
+                              !backgroundImage!.existsSync())
                           ? Row(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -572,7 +606,9 @@ class _ProfilePageState extends State<ProfilePage> {
                                 width: 110,
                                 height: 110,
                                 color: Colors.deepOrange.shade50,
-                                child: (currentProfileImage == null || !currentProfileImage!.existsSync())
+                                child:
+                                    (currentProfileImage == null ||
+                                        !currentProfileImage!.existsSync())
                                     ? Icon(
                                         Icons.person,
                                         size: 56,
@@ -656,7 +692,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                       ),
                       SizedBox(width: 6),
-                       // VERIFIED ICON START
+                      // VERIFIED ICON START
                       // Only show if user is authenticated via Firebase
                       if (FirebaseAuth.instance.currentUser != null)
                         Icon(Icons.check_circle, color: Colors.blue, size: 16),
@@ -768,7 +804,10 @@ class _ProfilePageState extends State<ProfilePage> {
                             padding: EdgeInsets.all(16),
                             child: Row(
                               children: [
-                                Icon(Icons.headphones, color: Colors.deepPurple),
+                                Icon(
+                                  Icons.headphones,
+                                  color: Colors.deepPurple,
+                                ),
                                 SizedBox(width: 16),
                                 Expanded(
                                   child: Text(
@@ -820,7 +859,9 @@ class _ProfilePageState extends State<ProfilePage> {
                         if (context.mounted) {
                           Navigator.pushAndRemoveUntil(
                             context,
-                            MaterialPageRoute(builder: (context) => LoginPage()),
+                            MaterialPageRoute(
+                              builder: (context) => LoginPage(),
+                            ),
                             (route) => false,
                           );
                         }
@@ -848,7 +889,9 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _showSupportBottomSheet() {
-    final emailController = TextEditingController(text: FirebaseAuth.instance.currentUser?.email ?? "");
+    final emailController = TextEditingController(
+      text: FirebaseAuth.instance.currentUser?.email ?? "",
+    );
     final messageController = TextEditingController();
     final formKey = GlobalKey<FormState>();
 
@@ -903,17 +946,27 @@ class _ProfilePageState extends State<ProfilePage> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // WhatsApp option card
                   InkWell(
                     onTap: () async {
-                      final cleanPhone = whatsappNumber.replaceAll(RegExp(r'[^\d+]'), '');
-                      final whatsappUrl = Uri.parse("https://wa.me/$cleanPhone");
+                      final cleanPhone = whatsappNumber.replaceAll(
+                        RegExp(r'[^\d+]'),
+                        '',
+                      );
+                      final whatsappUrl = Uri.parse(
+                        "https://wa.me/$cleanPhone",
+                      );
                       if (await canLaunchUrl(whatsappUrl)) {
-                        await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
+                        await launchUrl(
+                          whatsappUrl,
+                          mode: LaunchMode.externalApplication,
+                        );
                       } else {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("Lama furi karo WhatsApp-ka hadda.")),
+                          const SnackBar(
+                            content: Text("Lama furi karo WhatsApp-ka hadda."),
+                          ),
                         );
                       }
                     },
@@ -963,13 +1016,17 @@ class _ProfilePageState extends State<ProfilePage> {
                               ],
                             ),
                           ),
-                          Icon(Icons.arrow_forward_ios, size: 16, color: Colors.green.shade700),
+                          Icon(
+                            Icons.arrow_forward_ios,
+                            size: 16,
+                            color: Colors.green.shade700,
+                          ),
                         ],
                       ),
                     ),
                   ),
                   const SizedBox(height: 24),
-                  
+
                   Row(
                     children: [
                       Expanded(child: Divider(color: Colors.grey.shade300)),
@@ -977,7 +1034,10 @@ class _ProfilePageState extends State<ProfilePage> {
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Text(
                           "Ama noogu soo dir Email",
-                          style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                       Expanded(child: Divider(color: Colors.grey.shade300)),
@@ -988,6 +1048,8 @@ class _ProfilePageState extends State<ProfilePage> {
                   // Email input
                   TextFormField(
                     controller: emailController,
+                    autocorrect: false,
+                    enableSuggestions: false,
                     decoration: InputDecoration(
                       labelText: "Emailkaaga",
                       border: OutlineInputBorder(
@@ -1008,6 +1070,8 @@ class _ProfilePageState extends State<ProfilePage> {
                   // Message input
                   TextFormField(
                     controller: messageController,
+                    autocorrect: false,
+                    enableSuggestions: false,
                     maxLines: 4,
                     decoration: InputDecoration(
                       labelText: "Fariintaada",
@@ -1031,31 +1095,41 @@ class _ProfilePageState extends State<ProfilePage> {
                       if (formKey.currentState!.validate()) {
                         final enteredEmail = emailController.text.trim();
                         final enteredMessage = messageController.text.trim();
-                        
-                        final String subject = Uri.encodeComponent("Deeli App Support Request");
+
+                        final String subject = Uri.encodeComponent(
+                          "Deeli App Support Request",
+                        );
                         final String body = Uri.encodeComponent(
-                          "Customer Email: $enteredEmail\n\nMessage:\n$enteredMessage"
+                          "Customer Email: $enteredEmail\n\nMessage:\n$enteredMessage",
                         );
                         final Uri emailUri = Uri.parse(
-                          "mailto:$supportEmail?subject=$subject&body=$body"
+                          "mailto:$supportEmail?subject=$subject&body=$body",
                         );
-                        
+
                         try {
-                          await Supabase.instance.client.from('support_messages').insert({
-                            'email': enteredEmail,
-                            'message': enteredMessage,
-                            'created_at': DateTime.now().toIso8601String(),
-                          });
+                          await Supabase.instance.client
+                              .from('support_messages')
+                              .insert({
+                                'email': enteredEmail,
+                                'message': enteredMessage,
+                                'created_at': DateTime.now().toIso8601String(),
+                              });
                         } catch (_) {}
 
                         Navigator.pop(context);
 
-                        if (await canLaunchUrl(emailUri)) {
-                          await launchUrl(emailUri);
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("Lama furi karo Email-ka hadda.")),
-                          );
+                        try {
+                          await launchUrl(emailUri, mode: LaunchMode.externalApplication);
+                        } catch (_) {
+                          try {
+                            await launchUrl(emailUri);
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Lama furi karo Email-ka. Fariintaada database-ka waa lagu kaydiyay."),
+                              ),
+                            );
+                          }
                         }
                       }
                     },
@@ -1069,7 +1143,10 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                     child: const Text(
                       "Dir Fariinta Caawinaada",
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
                   ),
                 ],

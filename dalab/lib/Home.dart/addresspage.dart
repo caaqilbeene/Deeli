@@ -183,6 +183,8 @@ class _AddresspageState extends State<Addresspage> {
                 ),
                 child: TextFormField(
                   controller: nameController,
+                  autocorrect: false,
+                  enableSuggestions: false,
                   validator: (value) {
                     if (value == null || value.isEmpty) return "name Required";
                     return null;
@@ -292,6 +294,8 @@ class _AddresspageState extends State<Addresspage> {
                 ),
                 child: TextFormField(
                   controller: detailsController,
+                  autocorrect: false,
+                  enableSuggestions: false,
                   maxLines: 4,
                   decoration: const InputDecoration(border: InputBorder.none),
                 ),
