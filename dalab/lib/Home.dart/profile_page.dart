@@ -4,6 +4,7 @@ import 'package:dalab/auth/loginpage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -85,7 +86,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   String getTwitterHandle(String name) {
-    return '@' + name.replaceAll(' ', '').toLowerCase();
+    return '@${name.replaceAll(' ', '').toLowerCase()}';
   }
 
   @override
@@ -104,27 +105,37 @@ class _ProfilePageState extends State<ProfilePage> {
     final image = await picker.pickImage(source: ImageSource.gallery);
     if (image == null) return;
 
+    final directory = await getApplicationDocumentsDirectory();
+    final permanentFile = await File(image.path).copy(
+      '${directory.path}/profile_image_${DateTime.now().millisecondsSinceEpoch}.png',
+    );
+
     setState(() {
-      localProfileImage = File(image.path);
+      localProfileImage = permanentFile;
     });
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('profile_image_path', image.path);
+    await prefs.setString('profile_image_path', permanentFile.path);
 
-    widget.onProfileImageChanged?.call(File(image.path));
+    widget.onProfileImageChanged?.call(permanentFile);
   }
 
   Future<void> pickBackgroundImage() async {
     final image = await picker.pickImage(source: ImageSource.gallery);
     if (image == null) return;
 
+    final directory = await getApplicationDocumentsDirectory();
+    final permanentFile = await File(image.path).copy(
+      '${directory.path}/background_image_${DateTime.now().millisecondsSinceEpoch}.png',
+    );
+
     setState(() {
-      backgroundImage = File(image.path);
+      backgroundImage = permanentFile;
       backgroundY = 0;
     });
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('background_image_path', image.path);
+    await prefs.setString('background_image_path', permanentFile.path);
     await prefs.setDouble('background_y', 0.0);
 
     if (mounted) openBackgroundSlider();

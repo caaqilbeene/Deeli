@@ -32,7 +32,7 @@ class _AddresspageState extends State<Addresspage> {
     "Xamar Jajab",
     "Xamar Weyne",
   ]..sort();
-  
+
   // ==========================================
   // QEYBTA QIIMAHA GEYNTA (DELIVERY FEE) START
   // ==========================================
@@ -63,7 +63,7 @@ class _AddresspageState extends State<Addresspage> {
   // ==========================================
   // QEYBTA QIIMAHA GEYNTA (DELIVERY FEE) END
   // ==========================================
-  
+
   bool isLoading = false;
 
   TextEditingController nameController = TextEditingController();
@@ -127,7 +127,8 @@ class _AddresspageState extends State<Addresspage> {
                   ),
                 );
               } else {
-                String errorMsg = result?.replaceAll('Error: ', '') ?? 'Unknown error';
+                String errorMsg =
+                    result?.replaceAll('Error: ', '') ?? 'Unknown error';
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('Cillad: $errorMsg'),
@@ -257,10 +258,11 @@ class _AddresspageState extends State<Addresspage> {
                 ),
                 child: DropdownButtonFormField<String>(
                   isExpanded: true,
-                  value: selectedDistrict,
+                  initialValue: selectedDistrict,
                   hint: const Text("Select District"),
                   decoration: const InputDecoration(border: InputBorder.none),
-                  validator: (value) => value == null ? "Fadlan dooro degmada" : null,
+                  validator: (value) =>
+                      value == null ? "Fadlan dooro degmada" : null,
                   items: mogadishuDistricts.map((district) {
                     return DropdownMenuItem(
                       value: district,
@@ -270,7 +272,7 @@ class _AddresspageState extends State<Addresspage> {
                   onChanged: (value) {
                     setState(() {
                       selectedDistrict = value;
-                      // Halkaan: Marka degmo cusub la doorto (value), app-ku wuxuu ka raadinayaa 
+                      // Halkaan: Marka degmo cusub la doorto (value), app-ku wuxuu ka raadinayaa
                       // Map-ka kore (deliveryFees). Haddii uu waayo wuxuu ka dhigayaa $1.0 (Default).
                       if (value != null) {
                         deliveryFee = deliveryFees[value] ?? 1.0;
@@ -366,7 +368,7 @@ class _AddresspageState extends State<Addresspage> {
                   children: [
                     const Text("Delivery Fee"),
                     const Spacer(),
-                    Text("\$${deliveryFee.toStringAsFixed(2)}")
+                    Text("\$${deliveryFee.toStringAsFixed(2)}"),
                   ],
                 ),
               ),
