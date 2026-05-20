@@ -389,11 +389,18 @@ class _HomepageState extends State<Homepage> {
                             );
                           }
 
-                          if (snapshot.hasError) {
-                            return Center(
-                              child: Text('Cillad: ${snapshot.error}'),
-                            );
-                          }
+                           if (snapshot.hasError) {
+                             return const Center(
+                               child: Padding(
+                                 padding: EdgeInsets.symmetric(vertical: 20),
+                                 child: Text(
+                                   "Lama xiriiri karo server-ka hadda. Hubi internet-kaaga.",
+                                   style: TextStyle(color: Colors.grey, fontSize: 13),
+                                   textAlign: TextAlign.center,
+                                 ),
+                               ),
+                             );
+                           }
 
                           final data = snapshot.data ?? [];
                           if (data.isEmpty) {

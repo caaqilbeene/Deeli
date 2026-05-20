@@ -27,7 +27,7 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   // Support configuration (edit these variables to change your contact details)
   final String whatsappNumber = "+252622843233";
-  final String supportEmail = "caaqilbeene@gmail.com";
+  final String supportEmail = "caaqilbeene@hotmail.com";
 
   final ImagePicker picker = ImagePicker();
   final TextEditingController nameController = TextEditingController();
@@ -933,7 +933,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        "Gawraha Caawinaada",
+                        "Qeybta Caawinaada",
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -1106,29 +1106,31 @@ class _ProfilePageState extends State<ProfilePage> {
                           "mailto:$supportEmail?subject=$subject&body=$body",
                         );
 
-                        try {
-                          await Supabase.instance.client
-                              .from('support_messages')
-                              .insert({
-                                'email': enteredEmail,
-                                'message': enteredMessage,
-                                'created_at': DateTime.now().toIso8601String(),
-                              });
-                        } catch (_) {}
-
+                        // Close bottom sheet immediately & synchronously
                         Navigator.pop(context);
 
+                        // Save support request in the background
+                        Supabase.instance.client
+                            .from('support_messages')
+                            .insert({
+                              'email': enteredEmail,
+                              'message': enteredMessage,
+                              'created_at': DateTime.now().toIso8601String(),
+                            })
+                            .then((_) {})
+                            .catchError((_) {});
+
+                        // Launch email client
                         try {
-                          await launchUrl(emailUri, mode: LaunchMode.externalApplication);
+                          await launchUrl(
+                            emailUri,
+                            mode: LaunchMode.externalApplication,
+                          );
                         } catch (_) {
                           try {
                             await launchUrl(emailUri);
-                          } catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text("Lama furi karo Email-ka. Fariintaada database-ka waa lagu kaydiyay."),
-                              ),
-                            );
+                          } catch (_) {
+                            // Quiet fallback, message is already saved in database
                           }
                         }
                       }

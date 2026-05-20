@@ -361,7 +361,12 @@ class _MealspageState extends State<Meals> {
                 }
                 
                 if (snapshot.hasError) {
-                  return Center(child: Text('Cillad: ${snapshot.error}'));
+                  return const Center(
+                    child: Text(
+                      "Lama xiriiri karo server-ka. Fadlan hubi internet-kaaga.",
+                      style: TextStyle(color: Colors.grey, fontSize: 14),
+                    ),
+                  );
                 }
                 
                 final data = snapshot.data ?? [];
