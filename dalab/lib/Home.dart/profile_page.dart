@@ -35,12 +35,12 @@ class _ProfilePageState extends State<ProfilePage> {
 
   File? localProfileImage;
   File? backgroundImage;
+  String? profileImageUrl;
+  String? backgroundImageUrl;
   String profileName = "Mohamed Ali";
   double backgroundY = 0;
   String selectedDistrict = "Hodan";
   String joinedDate = "22 Apr, 2026";
-
-  File? get currentProfileImage => widget.profileImage ?? localProfileImage;
 
   @override
   void initState() {
@@ -55,12 +55,30 @@ class _ProfilePageState extends State<ProfilePage> {
 
       final profPath = prefs.getString('profile_image_path');
       if (profPath != null && profPath.isNotEmpty) {
-        localProfileImage = File(profPath);
+        if (profPath.startsWith('http') || profPath.startsWith('https')) {
+          profileImageUrl = profPath;
+          localProfileImage = null;
+        } else {
+          final file = File(profPath);
+          if (file.existsSync()) {
+            localProfileImage = file;
+            profileImageUrl = null;
+          }
+        }
       }
 
       final bgPath = prefs.getString('background_image_path');
       if (bgPath != null && bgPath.isNotEmpty) {
-        backgroundImage = File(bgPath);
+        if (bgPath.startsWith('http') || bgPath.startsWith('https')) {
+          backgroundImageUrl = bgPath;
+          backgroundImage = null;
+        } else {
+          final file = File(bgPath);
+          if (file.existsSync()) {
+            backgroundImage = file;
+            backgroundImageUrl = null;
+          }
+        }
       }
 
       backgroundY = prefs.getDouble('background_y') ?? 0.0;
@@ -68,16 +86,58 @@ class _ProfilePageState extends State<ProfilePage> {
       joinedDate = prefs.getString('joined_date') ?? "22 Apr, 2026";
     });
 
-    // Auto-sync current logged in user to Supabase 'users' table (iga bilaaw logic)
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
+      // 1. Fetch current profile from Supabase to sync across devices/re-installs
+      try {
+        final data = await Supabase.instance.client
+            .from('users')
+            .select('name, avatar_url, background_url, created_at')
+            .eq('id', user.uid)
+            .maybeSingle();
+
+        if (data != null) {
+          final String? dbName = data['name'];
+          final String? dbAvatar = data['avatar_url'];
+          final String? dbBg = data['background_url'];
+          final String? dbCreatedAt = data['created_at'];
+
+          setState(() {
+            if (dbName != null && dbName.isNotEmpty) {
+              profileName = dbName;
+              prefs.setString('profile_name', dbName);
+            }
+            if (dbAvatar != null && dbAvatar.isNotEmpty) {
+              profileImageUrl = dbAvatar;
+              localProfileImage = null;
+              prefs.setString('profile_image_path', dbAvatar);
+            }
+            if (dbBg != null && dbBg.isNotEmpty) {
+              backgroundImageUrl = dbBg;
+              backgroundImage = null;
+              prefs.setString('background_image_path', dbBg);
+            }
+            if (dbCreatedAt != null) {
+              try {
+                final dt = DateTime.parse(dbCreatedAt);
+                final months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                joinedDate = "${dt.day} ${months[dt.month - 1]}, ${dt.year}";
+                prefs.setString('joined_date', joinedDate);
+              } catch (_) {}
+            }
+          });
+        }
+      } catch (e) {
+        print("Error fetching user profile from Supabase: $e");
+      }
+
+      // 2. Ensure current record is updated/active in Supabase 'users' table
       try {
         await Supabase.instance.client.from('users').upsert({
           'id': user.uid,
           'phone': user.phoneNumber,
           'name': profileName,
-          'created_at':
-              '2026-04-22T12:00:00Z', // Set to 22 April 2026 as requested!
+          'created_at': '2026-04-22T12:00:00Z', // Set to 22 April 2026 as requested!
         });
       } catch (e) {
         print("Error syncing current user to Supabase: $e");
@@ -112,12 +172,45 @@ class _ProfilePageState extends State<ProfilePage> {
 
     setState(() {
       localProfileImage = permanentFile;
+      profileImageUrl = null;
     });
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('profile_image_path', permanentFile.path);
 
     widget.onProfileImageChanged?.call(permanentFile);
+
+    // Background upload to Supabase Storage
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        final fileName = 'avatar_${user.uid}_${DateTime.now().millisecondsSinceEpoch}.png';
+        final storagePath = 'avatars/$fileName';
+        
+        await Supabase.instance.client.storage
+            .from('avatars')
+            .upload(storagePath, permanentFile);
+
+        final publicUrl = Supabase.instance.client.storage
+            .from('avatars')
+            .getPublicUrl(storagePath);
+
+        await prefs.setString('profile_image_path', publicUrl);
+        setState(() {
+          profileImageUrl = publicUrl;
+          localProfileImage = null;
+        });
+
+        await Supabase.instance.client.from('users').upsert({
+          'id': user.uid,
+          'phone': user.phoneNumber,
+          'name': profileName,
+          'avatar_url': publicUrl,
+        });
+      } catch (e) {
+        print("Supabase Storage profile upload error: $e");
+      }
+    }
   }
 
   Future<void> pickBackgroundImage() async {
@@ -131,6 +224,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
     setState(() {
       backgroundImage = permanentFile;
+      backgroundImageUrl = null;
       backgroundY = 0;
     });
 
@@ -139,6 +233,38 @@ class _ProfilePageState extends State<ProfilePage> {
     await prefs.setDouble('background_y', 0.0);
 
     if (mounted) openBackgroundSlider();
+
+    // Background upload to Supabase Storage
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        final fileName = 'bg_${user.uid}_${DateTime.now().millisecondsSinceEpoch}.png';
+        final storagePath = 'backgrounds/$fileName';
+        
+        await Supabase.instance.client.storage
+            .from('backgrounds')
+            .upload(storagePath, permanentFile);
+
+        final publicUrl = Supabase.instance.client.storage
+            .from('backgrounds')
+            .getPublicUrl(storagePath);
+
+        await prefs.setString('background_image_path', publicUrl);
+        setState(() {
+          backgroundImageUrl = publicUrl;
+          backgroundImage = null;
+        });
+
+        await Supabase.instance.client.from('users').upsert({
+          'id': user.uid,
+          'phone': user.phoneNumber,
+          'name': profileName,
+          'background_url': publicUrl,
+        });
+      } catch (e) {
+        print("Supabase Storage background upload error: $e");
+      }
+    }
   }
 
   void openBackgroundSlider() {
@@ -496,28 +622,30 @@ class _ProfilePageState extends State<ProfilePage> {
                       height: 190,
                       width: double.infinity,
                       decoration: BoxDecoration(
-                        image:
-                            (backgroundImage == null ||
-                                !backgroundImage!.existsSync())
-                            ? null
-                            : DecorationImage(
+                        image: backgroundImage != null && backgroundImage!.existsSync()
+                            ? DecorationImage(
                                 image: FileImage(backgroundImage!),
                                 fit: BoxFit.cover,
                                 alignment: Alignment(0, backgroundY),
-                              ),
-                        gradient:
-                            (backgroundImage == null ||
-                                !backgroundImage!.existsSync())
-                            ? LinearGradient(
+                              )
+                            : (backgroundImageUrl != null && backgroundImageUrl!.isNotEmpty
+                                ? DecorationImage(
+                                    image: NetworkImage(backgroundImageUrl!),
+                                    fit: BoxFit.cover,
+                                    alignment: Alignment(0, backgroundY),
+                                  )
+                                : null),
+                        gradient: (backgroundImage == null || !backgroundImage!.existsSync()) &&
+                                (backgroundImageUrl == null || backgroundImageUrl!.isEmpty)
+                            ? const LinearGradient(
                                 begin: Alignment.topCenter,
                                 end: Alignment.bottomCenter,
                                 colors: [Color(0xFFFFF1E9), Color(0xFFEFF7FF)],
                               )
                             : null,
                       ),
-                      child:
-                          (backgroundImage == null ||
-                              !backgroundImage!.existsSync())
+                      child: (backgroundImage == null || !backgroundImage!.existsSync()) &&
+                              (backgroundImageUrl == null || backgroundImageUrl!.isEmpty)
                           ? Row(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -525,43 +653,43 @@ class _ProfilePageState extends State<ProfilePage> {
                                 Container(
                                   width: 32,
                                   height: 64,
-                                  margin: EdgeInsets.symmetric(horizontal: 3),
+                                  margin: const EdgeInsets.symmetric(horizontal: 3),
                                   color: Colors.blueGrey.shade200,
                                 ),
                                 Container(
                                   width: 44,
                                   height: 92,
-                                  margin: EdgeInsets.symmetric(horizontal: 3),
+                                  margin: const EdgeInsets.symmetric(horizontal: 3),
                                   color: Colors.blueGrey.shade200,
                                 ),
                                 Container(
                                   width: 28,
                                   height: 70,
-                                  margin: EdgeInsets.symmetric(horizontal: 3),
+                                  margin: const EdgeInsets.symmetric(horizontal: 3),
                                   color: Colors.blueGrey.shade200,
                                 ),
                                 Container(
                                   width: 54,
                                   height: 125,
-                                  margin: EdgeInsets.symmetric(horizontal: 3),
+                                  margin: const EdgeInsets.symmetric(horizontal: 3),
                                   color: Colors.blueGrey.shade200,
                                 ),
                                 Container(
                                   width: 36,
                                   height: 86,
-                                  margin: EdgeInsets.symmetric(horizontal: 3),
+                                  margin: const EdgeInsets.symmetric(horizontal: 3),
                                   color: Colors.blueGrey.shade200,
                                 ),
                                 Container(
                                   width: 46,
                                   height: 104,
-                                  margin: EdgeInsets.symmetric(horizontal: 3),
+                                  margin: const EdgeInsets.symmetric(horizontal: 3),
                                   color: Colors.blueGrey.shade200,
                                 ),
                                 Container(
                                   width: 30,
                                   height: 76,
-                                  margin: EdgeInsets.symmetric(horizontal: 3),
+                                  margin: const EdgeInsets.symmetric(horizontal: 3),
                                   color: Colors.blueGrey.shade200,
                                 ),
                               ],
@@ -574,7 +702,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     top: 48,
                     child: GestureDetector(
                       onTap: pickBackgroundImage,
-                      child: CircleAvatar(
+                      child: const CircleAvatar(
                         radius: 22,
                         backgroundColor: Colors.white,
                         child: Icon(Icons.camera_alt, color: Colors.black),
@@ -590,7 +718,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       onTap: () {
                         Navigator.pop(context);
                       },
-                      child: CircleAvatar(
+                      child: const CircleAvatar(
                         radius: 22,
                         backgroundColor: Colors.white,
                         child: Icon(Icons.arrow_back, color: Colors.black),
@@ -617,19 +745,34 @@ class _ProfilePageState extends State<ProfilePage> {
                                 width: 110,
                                 height: 110,
                                 color: Colors.deepOrange.shade50,
-                                child:
-                                    (currentProfileImage == null ||
-                                        !currentProfileImage!.existsSync())
-                                    ? Icon(
-                                        Icons.person,
-                                        size: 56,
-                                        color: Colors.deepOrange,
-                                      )
-                                    : Image.file(
-                                        currentProfileImage!,
+                                child: localProfileImage != null && localProfileImage!.existsSync()
+                                    ? Image.file(
+                                        localProfileImage!,
                                         fit: BoxFit.cover,
                                         alignment: Alignment.center,
-                                      ),
+                                      )
+                                    : (widget.profileImage != null && widget.profileImage!.existsSync()
+                                        ? Image.file(
+                                            widget.profileImage!,
+                                            fit: BoxFit.cover,
+                                            alignment: Alignment.center,
+                                          )
+                                        : (profileImageUrl != null && profileImageUrl!.isNotEmpty
+                                            ? Image.network(
+                                                profileImageUrl!,
+                                                fit: BoxFit.cover,
+                                                alignment: Alignment.center,
+                                                errorBuilder: (c, e, s) => const Icon(
+                                                  Icons.person,
+                                                  size: 56,
+                                                  color: Colors.deepOrange,
+                                                ),
+                                              )
+                                            : const Icon(
+                                                Icons.person,
+                                                size: 56,
+                                                color: Colors.deepOrange,
+                                              ))),
                               ),
                             ),
                           ),

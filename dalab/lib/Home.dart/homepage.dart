@@ -13,7 +13,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class Homepage extends StatefulWidget {
   const Homepage({super.key});
@@ -25,6 +27,7 @@ class Homepage extends StatefulWidget {
 class _HomepageState extends State<Homepage> {
   int currentIndex = 0;
   File? profileImage;
+  String? profileImageUrl;
   final ImagePicker picker = ImagePicker();
   final SupabaseClient _supabase = Supabase.instance.client;
 
@@ -38,9 +41,45 @@ class _HomepageState extends State<Homepage> {
     final prefs = await SharedPreferences.getInstance();
     final profPath = prefs.getString('profile_image_path');
     if (profPath != null && profPath.isNotEmpty) {
-      setState(() {
-        profileImage = File(profPath);
-      });
+      if (profPath.startsWith('http') || profPath.startsWith('https')) {
+        setState(() {
+          profileImageUrl = profPath;
+          profileImage = null;
+        });
+      } else {
+        final file = File(profPath);
+        if (file.existsSync()) {
+          setState(() {
+            profileImage = file;
+            profileImageUrl = null;
+          });
+        }
+      }
+    }
+
+    // Background sync from Supabase
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        final data = await _supabase
+            .from('users')
+            .select('avatar_url')
+            .eq('id', user.uid)
+            .maybeSingle();
+
+        if (data != null && data['avatar_url'] != null) {
+          final String dbAvatar = data['avatar_url'];
+          if (dbAvatar.isNotEmpty) {
+            setState(() {
+              profileImageUrl = dbAvatar;
+              profileImage = null;
+            });
+            await prefs.setString('profile_image_path', dbAvatar);
+          }
+        }
+      } catch (e) {
+        print("Error loading user profile image from Supabase: $e");
+      }
     }
   }
 
@@ -57,6 +96,7 @@ class _HomepageState extends State<Homepage> {
             onProfileImageChanged: (image) {
               setState(() {
                 profileImage = image;
+                profileImageUrl = null;
               });
             },
           ),
@@ -74,11 +114,49 @@ class _HomepageState extends State<Homepage> {
   Future<void> pickImage() async {
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
     if (pickedFile != null) {
+      final directory = await getApplicationDocumentsDirectory();
+      final permanentFile = await File(pickedFile.path).copy(
+        '${directory.path}/profile_image_${DateTime.now().millisecondsSinceEpoch}.png',
+      );
+
       setState(() {
-        profileImage = File(pickedFile.path);
+        profileImage = permanentFile;
+        profileImageUrl = null;
       });
+
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('profile_image_path', pickedFile.path);
+      await prefs.setString('profile_image_path', permanentFile.path);
+
+      // Background upload to Supabase Storage
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        try {
+          final fileName = 'avatar_${user.uid}_${DateTime.now().millisecondsSinceEpoch}.png';
+          final storagePath = 'avatars/$fileName';
+          
+          await Supabase.instance.client.storage
+              .from('avatars')
+              .upload(storagePath, permanentFile);
+
+          final publicUrl = Supabase.instance.client.storage
+              .from('avatars')
+              .getPublicUrl(storagePath);
+
+          await prefs.setString('profile_image_path', publicUrl);
+          setState(() {
+            profileImageUrl = publicUrl;
+            profileImage = null;
+          });
+
+          await _supabase.from('users').upsert({
+            'id': user.uid,
+            'phone': user.phoneNumber,
+            'avatar_url': publicUrl,
+          });
+        } catch (e) {
+          print("Supabase Storage profile upload error from Homepage: $e");
+        }
+      }
     }
   }
 
@@ -135,18 +213,28 @@ class _HomepageState extends State<Homepage> {
             label: "My order",
           ),
           BottomNavigationBarItem(
-            icon: profileImage != null
+            icon: profileImage != null && profileImage!.existsSync()
                 ? CircleAvatar(
                     backgroundImage: FileImage(profileImage!),
                     radius: 16,
                   )
-                : Icon(CupertinoIcons.person),
-            activeIcon: profileImage != null
+                : (profileImageUrl != null && profileImageUrl!.isNotEmpty
+                    ? CircleAvatar(
+                        backgroundImage: NetworkImage(profileImageUrl!),
+                        radius: 16,
+                      )
+                    : const Icon(CupertinoIcons.person)),
+            activeIcon: profileImage != null && profileImage!.existsSync()
                 ? CircleAvatar(
                     backgroundImage: FileImage(profileImage!),
                     radius: 16,
                   )
-                : Icon(CupertinoIcons.person),
+                : (profileImageUrl != null && profileImageUrl!.isNotEmpty
+                    ? CircleAvatar(
+                        backgroundImage: NetworkImage(profileImageUrl!),
+                        radius: 16,
+                      )
+                    : const Icon(CupertinoIcons.person)),
             label: "Profile",
           ),
         ],
