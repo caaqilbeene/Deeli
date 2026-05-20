@@ -1109,6 +1109,15 @@ class _ProfilePageState extends State<ProfilePage> {
                         // Close bottom sheet immediately & synchronously
                         Navigator.pop(context);
 
+                        // Show success snackbar
+                        ScaffoldMessenger.of(this.context).showSnackBar(
+                          const SnackBar(
+                            content: Text("Farriintaada waa la diray!"),
+                            backgroundColor: Colors.green,
+                            duration: Duration(seconds: 3),
+                          ),
+                        );
+
                         // Save support request in the background
                         Supabase.instance.client
                             .from('support_messages')
