@@ -249,10 +249,29 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
     const double newBalance = 0.0; // Reset balance back to 0.0
 
     try {
-      // Update balance securely in the database
+      // 1. Reset user digital balance in the database
       await Supabase.instance.client.from('users').update({
         'bonus_balance': newBalance,
       }).eq('id', user.uid);
+
+      // 2. Fetch current balance of physical card to increment it
+      final cardRes = await Supabase.instance.client
+          .from('physical_cards')
+          .select('balance')
+          .eq('card_number', linkedCardNumber!)
+          .maybeSingle();
+
+      double currentCardBalance = 0.0;
+      if (cardRes != null && cardRes['balance'] != null) {
+        currentCardBalance = (cardRes['balance'] as num).toDouble();
+      }
+
+      final double newCardBalance = currentCardBalance + withdrawAmount;
+
+      // 3. Update the physical card's balance in Supabase
+      await Supabase.instance.client.from('physical_cards').update({
+        'balance': newCardBalance,
+      }).eq('card_number', linkedCardNumber!);
 
       // Save locally
       final prefs = await SharedPreferences.getInstance();
