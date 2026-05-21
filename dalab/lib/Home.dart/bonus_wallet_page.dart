@@ -20,7 +20,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
   String userName = "Mohamed Ali";
   String? localLogoPath;
   String? remoteLogoUrl;
-  String? linkedCardNumber; // Fetched from Supabase
+  String? linkedCardNumber; // Fetched from Supabase (e.g. D101)
 
   bool isUploadingLogo = false;
   bool isLoadingData = true;
@@ -195,7 +195,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
   Future<void> _linkPhysicalCard() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final String inputCard = cardController.text.trim();
+    final String inputCard = cardController.text.trim().toUpperCase();
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -393,17 +393,17 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 1. PREMIUM SLIM CARD (Waafi/Classic Credit Card aspect ratio - height 180)
+                      // 1. PREMIUM CREDIT CARD (Standard Credit Card Aspect Ratio - Slimmer height 160)
                       Container(
                         width: double.infinity,
-                        height: 180, // Decreased card height to match credit card proportions
+                        height: 160, // Sleeker height
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
                             colors: [Color(0xFFFF6D24), Color(0xFFFF8E53)],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
-                          borderRadius: BorderRadius.circular(20), // standard rounded corners
+                          borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
                               color: const Color(0xFFFF6D24).withOpacity(0.12),
@@ -490,34 +490,15 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                     ],
                                   ),
                                 ),
-                                // Overlapping circular icons representing loyalty (mimicking Mastercard)
-                                Row(
-                                  children: [
-                                    Stack(
-                                      children: [
-                                        Container(
-                                          width: 24,
-                                          height: 24,
-                                          decoration: BoxDecoration(
-                                            color: Colors.red.withOpacity(0.85),
-                                            shape: BoxShape.circle,
-                                          ),
-                                        ),
-                                        Positioned(
-                                          left: 12,
-                                          child: Container(
-                                            width: 24,
-                                            height: 24,
-                                            decoration: BoxDecoration(
-                                              color: Colors.orange.withOpacity(0.85),
-                                              shape: BoxShape.circle,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(width: 28), // padding for overlapping circles
-                                  ],
+                                // Virtual Bonus label top right
+                                const Text(
+                                  "VIRTUAL BONUS",
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 10,
+                                    letterSpacing: 1.0,
+                                  ),
                                 ),
                               ],
                             ),
@@ -535,14 +516,14 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                               bonusBalance.toStringAsFixed(2),
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 26,
+                                fontSize: 24,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                             const Spacer(),
-                            // Card details bottom row
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            // Name and Card number stacked vertically (is hoos dhig)
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   userName.toUpperCase(),
@@ -553,10 +534,11 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                     letterSpacing: 0.5,
                                   ),
                                 ),
+                                const SizedBox(height: 2),
                                 Text(
                                   hasLinkedCard
                                       ? linkedCardNumber!
-                                      : "**** **** **** 3264",
+                                      : "D000",
                                   style: const TextStyle(
                                     color: Colors.white70,
                                     fontSize: 12,
@@ -667,7 +649,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                       Text(
                         hasLinkedCard
                             ? "Ku shubo dhammaan boniskaaga virtual-ka ah kaarkaaga physical-ka ah si aad maqaayadda uga adeegato."
-                            : "Geli 16-ka nambar ee kaarka physical-ka ah si aad ugu xirato koontadaada abka oo aad boniska ugu shubato.",
+                            : "Geli 4-ta xaraf/nambar ee kaarka physical-ka ah si aad ugu xirato koontadaada abka oo aad boniska ugu shubato.",
                         style: const TextStyle(
                           fontSize: 14,
                           color: Colors.black54,
@@ -678,7 +660,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
 
                       // 4. CARD NUMBER FIELD
                       const Text(
-                        "Nambarka Kaarka (Card Number)",
+                        "Nambarka Kaarka (Card Code)",
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -688,10 +670,12 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: cardController,
-                        keyboardType: TextInputType.number,
+                        keyboardType: TextInputType.text, // Text keyboard for alphanumeric codes like D101
                         enabled: !hasLinkedCard, // Disable if already linked
+                        autocorrect: false,
+                        textCapitalization: TextCapitalization.characters,
                         decoration: InputDecoration(
-                          hintText: "Geli 16-ka nambar ee kaarka",
+                          hintText: "Geli 4 xaraf/nambar (Tusaale: D101)",
                           prefixIcon: const Icon(CupertinoIcons.creditcard, color: Color(0xFFFF6D24)),
                           filled: true,
                           fillColor: hasLinkedCard ? Colors.grey.shade200 : Colors.grey.shade100,
@@ -705,8 +689,14 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                           if (value == null || value.trim().isEmpty) {
                             return "Fadlan geli nambarka kaarka!";
                           }
-                          if (value.trim().length < 8) {
-                            return "Nambarka kaarka aad buu u gaaban yahay!";
+                          final trimmed = value.trim();
+                          if (trimmed.length != 4) {
+                            return "Nambarka kaarku waa inuu ahaadaa 4 xaraf/nambar!";
+                          }
+                          // Validate it starts with a letter
+                          final firstChar = trimmed.substring(0, 1);
+                          if (!RegExp(r'[a-zA-Z]').hasMatch(firstChar)) {
+                            return "Waa inuu ku bilaabmo xaraf (Tusaale: D101)!";
                           }
                           return null;
                         },
