@@ -63,13 +63,11 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
     // Fetch live data from Supabase
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      // Check if current user is an administrator
+      // Check if current user is the super administrator
       final String? email = user.email;
       if (email != null) {
         final String lowerEmail = email.toLowerCase();
-        if (lowerEmail == 'super@deeli.com' ||
-            lowerEmail == 'staff@deeli.com' ||
-            lowerEmail.endsWith('@deeli.com')) {
+        if (lowerEmail == 'super@deeli.com') {
           setState(() {
             isAdmin = true;
           });
