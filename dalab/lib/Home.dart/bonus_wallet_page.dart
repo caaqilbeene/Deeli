@@ -1,6 +1,11 @@
+import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class BonusWalletPage extends StatefulWidget {
   const BonusWalletPage({super.key});
@@ -12,14 +17,20 @@ class BonusWalletPage extends StatefulWidget {
 class _BonusWalletPageState extends State<BonusWalletPage> {
   double bonusBalance = 150.00; // Default mock bonus
   String userName = "Mohamed Ali";
+  String? localLogoPath;
+  String? remoteLogoUrl;
+  bool isUploadingLogo = false;
+
   final TextEditingController cardController = TextEditingController();
   final TextEditingController amountController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  final ImagePicker picker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
     _loadWalletData();
+    _syncWithSupabase();
   }
 
   Future<void> _loadWalletData() async {
@@ -27,7 +38,100 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
     setState(() {
       userName = prefs.getString('profile_name') ?? "Mohamed Ali";
       bonusBalance = prefs.getDouble('bonus_balance') ?? 150.00;
+      localLogoPath = prefs.getString('restaurant_logo_path');
     });
+
+    // Generate/Get remote logo URL with cache busting
+    final String publicUrl = Supabase.instance.client.storage
+        .from('avatars')
+        .getPublicUrl('restaurant_logo.png');
+    setState(() {
+      remoteLogoUrl = "$publicUrl?t=${DateTime.now().millisecondsSinceEpoch}";
+    });
+  }
+
+  Future<void> _syncWithSupabase() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        final data = await Supabase.instance.client
+            .from('users')
+            .select('bonus_balance')
+            .eq('id', user.uid)
+            .maybeSingle();
+
+        if (data != null && data['bonus_balance'] != null) {
+          final double dbBalance = (data['bonus_balance'] as num).toDouble();
+          setState(() {
+            bonusBalance = dbBalance;
+          });
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setDouble('bonus_balance', dbBalance);
+        }
+      } catch (e) {
+        print("Error syncing bonus balance with Supabase: $e");
+      }
+    }
+  }
+
+  Future<void> _pickAndUploadLogo() async {
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      setState(() {
+        isUploadingLogo = true;
+      });
+
+      try {
+        final directory = await getApplicationDocumentsDirectory();
+        final permanentFile = await File(pickedFile.path).copy(
+          '${directory.path}/restaurant_logo.png',
+        );
+
+        // Save local path
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('restaurant_logo_path', permanentFile.path);
+
+        setState(() {
+          localLogoPath = permanentFile.path;
+        });
+
+        // Upload to Supabase Storage at fixed path restaurant_logo.png (force overwrite)
+        await Supabase.instance.client.storage
+            .from('avatars')
+            .upload('restaurant_logo.png', permanentFile, fileOptions: const FileOptions(upsert: true));
+
+        final String publicUrl = Supabase.instance.client.storage
+            .from('avatars')
+            .getPublicUrl('restaurant_logo.png');
+
+        setState(() {
+          remoteLogoUrl = "$publicUrl?t=${DateTime.now().millisecondsSinceEpoch}";
+          isUploadingLogo = false;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Astaanta maqaayadda si guul leh ayaa loo beddelay!"),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        print("Error uploading restaurant logo to Supabase: $e");
+        setState(() {
+          isUploadingLogo = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Error upload logo: $e"),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+      }
+    }
   }
 
   Future<void> _withdrawBonus() async {
@@ -44,11 +148,33 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
       return;
     }
 
+    final double newBalance = bonusBalance - withdrawAmount;
+
+    // Secure database update first (anti-fraud)
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        await Supabase.instance.client.from('users').update({
+          'bonus_balance': newBalance,
+        }).eq('id', user.uid);
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Cillad ka dhalatay kaydinta database-ka: $e"),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
+    }
+
+    // Save locally
     final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('bonus_balance', newBalance);
+
     setState(() {
-      bonusBalance -= withdrawAmount;
+      bonusBalance = newBalance;
     });
-    await prefs.setDouble('bonus_balance', bonusBalance);
 
     cardController.clear();
     amountController.clear();
@@ -73,6 +199,14 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Determine which image logo to show (Local file -> Network image -> Default icon)
+    ImageProvider? logoImage;
+    if (localLogoPath != null && File(localLogoPath!).existsSync()) {
+      logoImage = FileImage(File(localLogoPath!));
+    } else if (remoteLogoUrl != null) {
+      logoImage = NetworkImage(remoteLogoUrl!);
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -126,33 +260,76 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          // Restaurant Logo simulation on the left
-                          Row(
-                            children: [
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: const BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
+                          // Restaurant Logo simulation on the left with Tap to edit
+                          GestureDetector(
+                            onTap: _pickAndUploadLogo,
+                            child: Row(
+                              children: [
+                                Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    Container(
+                                      width: 44,
+                                      height: 44,
+                                      decoration: const BoxDecoration(
+                                        color: Colors.white,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: ClipOval(
+                                        child: logoImage != null
+                                            ? Image(
+                                                image: logoImage,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (context, error, stackTrace) =>
+                                                    const Icon(Icons.restaurant, color: Color(0xFFFF6D24)),
+                                              )
+                                            : const Icon(
+                                                Icons.restaurant,
+                                                color: Color(0xFFFF6D24),
+                                                size: 22,
+                                              ),
+                                      ),
+                                    ),
+                                    if (isUploadingLogo)
+                                      const SizedBox(
+                                        width: 44,
+                                        height: 44,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF6D24)),
+                                        ),
+                                      )
+                                    else
+                                      Positioned(
+                                        bottom: 0,
+                                        right: 0,
+                                        child: Container(
+                                          padding: const EdgeInsets.all(2),
+                                          decoration: const BoxDecoration(
+                                            color: Colors.black54,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(
+                                            Icons.camera_alt,
+                                            color: Colors.white,
+                                            size: 10,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
-                                child: const Icon(
-                                  Icons.restaurant,
-                                  color: Color(0xFFFF6D24),
-                                  size: 22,
+                                const SizedBox(width: 10),
+                                const Text(
+                                  "DEELI",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 18,
+                                    letterSpacing: 1.5,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 10),
-                              const Text(
-                                "DEELI",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 18,
-                                  letterSpacing: 1.5,
-                                ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                           // Card indicator text
                           const Text(

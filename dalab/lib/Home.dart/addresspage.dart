@@ -2,6 +2,9 @@ import 'package:dalab/Home.dart/cart_data.dart';
 import 'package:dalab/Home.dart/order_success_page.dart';
 import 'package:dalab/services/supabase_service.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class Addresspage extends StatefulWidget {
   const Addresspage({super.key});
@@ -119,6 +122,32 @@ class _AddresspageState extends State<Addresspage> {
               });
 
               if (result != null && !result.startsWith('Error:')) {
+                // Calculate and save bonus balance (5% cashback, max $200)
+                try {
+                  final double subtotal = CartData.subtotal;
+                  final double earnedBonus = subtotal * 0.05; // $0.05 per $1 spent
+
+                  final prefs = await SharedPreferences.getInstance();
+                  final double currentBonus = prefs.getDouble('bonus_balance') ?? 0.0;
+                  double newBonus = currentBonus + earnedBonus;
+                  if (newBonus > 200.0) {
+                    newBonus = 200.0; // Max cap
+                  }
+
+                  await prefs.setDouble('bonus_balance', newBonus);
+
+                  // Sync to Supabase table
+                  final user = FirebaseAuth.instance.currentUser;
+                  if (user != null) {
+                    await Supabase.instance.client
+                        .from('users')
+                        .update({'bonus_balance': newBonus})
+                        .eq('id', user.uid);
+                  }
+                } catch (e) {
+                  print("Error calculating or saving order bonus: $e");
+                }
+
                 CartData.clearCart();
                 Navigator.pushReplacement(
                   context,
