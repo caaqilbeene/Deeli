@@ -25,7 +25,9 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
   bool isUploadingLogo = false;
   bool isLoadingData = true;
   bool isProcessingAction = false;
-  bool isAdmin = false; // Flag to restrict logo upload to admins only
+  bool isAdmin = false; // Flag to restrict logo upload & show leaderboard to admins only
+  List<Map<String, dynamic>> topCustomers = []; // Leaderboard list for Admins
+  bool isLoadingTopCustomers = false;
 
   final TextEditingController cardController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
@@ -125,11 +127,41 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
       } catch (e) {
         print("Error fetching user wallet from Supabase: $e");
       }
+
+      // If user is admin, fetch the top earners leaderboard
+      if (isAdmin) {
+        await _fetchTopCustomers();
+      }
     }
 
     setState(() {
       isLoadingData = false;
     });
+  }
+
+  Future<void> _fetchTopCustomers() async {
+    setState(() {
+      isLoadingTopCustomers = true;
+    });
+    try {
+      final List<dynamic> res = await Supabase.instance.client
+          .from('users')
+          .select('name, bonus_balance, phone')
+          .order('bonus_balance', ascending: false)
+          .limit(10);
+
+      if (res.isNotEmpty) {
+        setState(() {
+          topCustomers = List<Map<String, dynamic>>.from(res);
+        });
+      }
+    } catch (e) {
+      print("Error fetching top customers: $e");
+    } finally {
+      setState(() {
+        isLoadingTopCustomers = false;
+      });
+    }
   }
 
   Future<void> _pickAndUploadLogo() async {
@@ -256,9 +288,21 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
         isProcessingAction = false;
       });
       if (mounted) {
+        // User friendly Somali error messages (no database codes displayed)
+        String userFriendlyError = "Fadlan geli kaar sax ah oo ka diiwaangashan maqaayadda!";
+        final String errorStr = e.toString().toLowerCase();
+
+        if (errorStr.contains("laguma hayo") || errorStr.contains("kuma jiro")) {
+          userFriendlyError = "Kaarkaan kuma jiro diiwaanka. Fadlan hubi nambarka aad gelisay!";
+        } else if (errorStr.contains("mar hore") || errorStr.contains("la isticmaalay")) {
+          userFriendlyError = "Kaarkaan mar hore ayaa loo isticmaalay koonto kale!";
+        } else if (errorStr.contains("balance does not exist")) {
+          userFriendlyError = "Kaarkaan lama xaqiijin karo (balance column is missing). Fadlan la xiriir maamulka!";
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Cillad: $e"),
+            content: Text(userFriendlyError),
             backgroundColor: Colors.redAccent,
             duration: const Duration(seconds: 4),
           ),
@@ -341,7 +385,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Cillad ka dhalatay kaydinta database-ka: $e"),
+            content: Text("Cillad ka dhalatay kaydinta database-ka: Kaarkaaga lama cusboonaysiin karo."),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -355,7 +399,10 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
     if (localLogoPath != null && File(localLogoPath!).existsSync()) {
       logoImage = FileImage(File(localLogoPath!));
     } else if (remoteLogoUrl != null) {
-      logoImage = NetworkImage(remoteLogoUrl!);
+      networkImageFallback() {
+        return NetworkImage(remoteLogoUrl!);
+      }
+      logoImage = networkImageFallback();
     }
 
     final bool hasLinkedCard = linkedCardNumber != null && linkedCardNumber!.isNotEmpty;
@@ -382,7 +429,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
       body: isLoadingData
           ? const Center(
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF6D24)),
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF455A64)), // BlueGrey loader color
               ),
             )
           : SingleChildScrollView(
@@ -393,20 +440,20 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 1. PREMIUM CREDIT CARD (Extremely Slim Aspect Ratio - Height 140, Zero overflow risk)
+                      // 1. PREMIUM CREDIT CARD (Premium BlueGrey Gradient Layout)
                       Container(
                         width: double.infinity,
-                        height: 140, // Ultra-slim, elegant height
+                        height: 140, // Ultra-slim height
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
-                            colors: [Color(0xFFFF6D24), Color(0xFFFF8E53)],
+                            colors: [Color(0xFF37474F), Color(0xFF546E7A)], // Premium BlueGrey gradients
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFFF6D24).withOpacity(0.12),
+                              color: Colors.blueGrey.withOpacity(0.12),
                               blurRadius: 10,
                               offset: const Offset(0, 5),
                             ),
@@ -440,11 +487,11 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                                       image: logoImage,
                                                       fit: BoxFit.cover,
                                                       errorBuilder: (context, error, stackTrace) =>
-                                                          const Icon(Icons.restaurant, color: Color(0xFFFF6D24)),
+                                                          const Icon(Icons.restaurant, color: Color(0xFF455A64)),
                                                     )
                                                   : const Icon(
                                                       Icons.restaurant,
-                                                      color: Color(0xFFFF6D24),
+                                                      color: Color(0xFF455A64),
                                                       size: 16,
                                                     ),
                                             ),
@@ -455,7 +502,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                               height: 32,
                                               child: CircularProgressIndicator(
                                                 strokeWidth: 2,
-                                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF6D24)),
+                                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF455A64)),
                                               ),
                                             )
                                           else if (isAdmin)
@@ -503,7 +550,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                               ],
                             ),
                             const Spacer(),
-                            // Split layout row at the bottom (Prevents vertical overflow completely)
+                            // Split layout row at the bottom
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               crossAxisAlignment: CrossAxisAlignment.end,
@@ -638,7 +685,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                     style: const TextStyle(
                                       fontSize: 18,
                                       fontWeight: FontWeight.bold,
-                                      color: Color(0xFFFF6D24),
+                                      color: Color(0xFF37474F), // Premium BlueGrey color
                                     ),
                                   ),
                                 ],
@@ -683,13 +730,13 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: cardController,
-                        keyboardType: TextInputType.text, // Text keyboard for alphanumeric codes like D101
-                        enabled: !hasLinkedCard, // Disable if already linked
+                        keyboardType: TextInputType.text,
+                        enabled: !hasLinkedCard,
                         autocorrect: false,
                         textCapitalization: TextCapitalization.characters,
                         decoration: InputDecoration(
                           hintText: "Geli 4 xaraf/nambar (Tusaale: D101)",
-                          prefixIcon: const Icon(CupertinoIcons.creditcard, color: Color(0xFFFF6D24)),
+                          prefixIcon: const Icon(CupertinoIcons.creditcard, color: Color(0xFF455A64)),
                           filled: true,
                           fillColor: hasLinkedCard ? Colors.grey.shade200 : Colors.grey.shade100,
                           border: OutlineInputBorder(
@@ -725,7 +772,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                               ? null
                               : (hasLinkedCard ? _withdrawBonus : _linkPhysicalCard),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFFF6D24),
+                            backgroundColor: const Color(0xFF37474F), // Premium BlueGrey
                             foregroundColor: Colors.white,
                             elevation: 0,
                             shape: RoundedRectangleBorder(
@@ -747,6 +794,98 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                 ),
                         ),
                       ),
+                      const SizedBox(height: 32),
+
+                      // 6. ADMIN LEADERBOARD SECTION (Visible ONLY to Admins)
+                      if (isAdmin) ...[
+                        const Divider(height: 32),
+                        const Text(
+                          "Macamiisha Ugu Dhibcaha Badan (Top Customers)",
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          "Liiska 10-ka macmiil ee ugu dhibcaha badan si aad u guddoonsiiso kaarka abaalmarinta.",
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.black54,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        if (isLoadingTopCustomers)
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(16.0),
+                              child: CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF455A64)),
+                              ),
+                            ),
+                          )
+                        else if (topCustomers.isEmpty)
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(16.0),
+                              child: Text(
+                                "Weli wax macaamiil ah lama helin.",
+                                style: TextStyle(color: Colors.black38),
+                              ),
+                            ),
+                          )
+                        else
+                          ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: topCustomers.length,
+                            separatorBuilder: (context, index) => const Divider(height: 1),
+                            itemBuilder: (context, index) {
+                              final customer = topCustomers[index];
+                              final String name = customer['name'] ?? "Macmiil aan la aqoon";
+                              final double balance = (customer['bonus_balance'] as num?)?.toDouble() ?? 0.0;
+                              final String phone = customer['phone'] ?? "N/A";
+
+                              // Medal or Index indicator
+                              String rankPrefix = "${index + 1}. ";
+                              if (index == 0) rankPrefix = "🥇 ";
+                              if (index == 1) rankPrefix = "🥈 ";
+                              if (index == 2) rankPrefix = "🥉 ";
+
+                              return ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: CircleAvatar(
+                                  backgroundColor: Colors.blueGrey.shade50,
+                                  child: Text(
+                                    rankPrefix.trim(),
+                                    style: const TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                                title: Text(
+                                  name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  phone,
+                                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                                ),
+                                trailing: Text(
+                                  balance.toStringAsFixed(2),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                    color: Color(0xFF37474F),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        const SizedBox(height: 24),
+                      ],
                     ],
                   ),
                 ),
