@@ -393,17 +393,17 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 1. PREMIUM CREDIT CARD (Standard Credit Card Aspect Ratio - Slimmer height 160)
+                      // 1. PREMIUM CREDIT CARD (Extremely Slim Aspect Ratio - Height 140, Zero overflow risk)
                       Container(
                         width: double.infinity,
-                        height: 160, // Sleeker height
+                        height: 140, // Ultra-slim, elegant height
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
                             colors: [Color(0xFFFF6D24), Color(0xFFFF8E53)],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
                               color: const Color(0xFFFF6D24).withOpacity(0.12),
@@ -412,7 +412,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                             ),
                           ],
                         ),
-                        padding: const EdgeInsets.all(20),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -428,8 +428,8 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                         alignment: Alignment.center,
                                         children: [
                                           Container(
-                                            width: 36,
-                                            height: 36,
+                                            width: 32,
+                                            height: 32,
                                             decoration: const BoxDecoration(
                                               color: Colors.white,
                                               shape: BoxShape.circle,
@@ -445,14 +445,14 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                                   : const Icon(
                                                       Icons.restaurant,
                                                       color: Color(0xFFFF6D24),
-                                                      size: 18,
+                                                      size: 16,
                                                     ),
                                             ),
                                           ),
                                           if (isUploadingLogo)
                                             const SizedBox(
-                                              width: 36,
-                                              height: 36,
+                                              width: 32,
+                                              height: 32,
                                               child: CircularProgressIndicator(
                                                 strokeWidth: 2,
                                                 valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF6D24)),
@@ -463,7 +463,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                               bottom: 0,
                                               right: 0,
                                               child: Container(
-                                                padding: const EdgeInsets.all(2),
+                                                padding: const EdgeInsets.all(1),
                                                 decoration: const BoxDecoration(
                                                   color: Colors.black54,
                                                   shape: BoxShape.circle,
@@ -471,7 +471,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                                 child: const Icon(
                                                   Icons.camera_alt,
                                                   color: Colors.white,
-                                                  size: 7,
+                                                  size: 6,
                                                 ),
                                               ),
                                             ),
@@ -483,7 +483,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                         style: TextStyle(
                                           color: Colors.white,
                                           fontWeight: FontWeight.bold,
-                                          fontSize: 15,
+                                          fontSize: 14,
                                           letterSpacing: 1.5,
                                         ),
                                       ),
@@ -496,55 +496,68 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                   style: TextStyle(
                                     color: Colors.white70,
                                     fontWeight: FontWeight.bold,
-                                    fontSize: 10,
+                                    fontSize: 9,
                                     letterSpacing: 1.0,
                                   ),
                                 ),
                               ],
                             ),
                             const Spacer(),
-                            // Bonus Balance Display
-                            const Text(
-                              "Accumulated Bonus",
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 12,
-                              ),
-                            ),
-                            const SizedBox(height: 1),
-                            Text(
-                              bonusBalance.toStringAsFixed(2),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const Spacer(),
-                            // Name and Card number stacked vertically (is hoos dhig)
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            // Split layout row at the bottom (Prevents vertical overflow completely)
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                Text(
-                                  userName.toUpperCase(),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 0.5,
-                                  ),
+                                // Left Column: Accumulated Bonus & Balance
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Text(
+                                      "Accumulated Bonus",
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 1),
+                                    Text(
+                                      bonusBalance.toStringAsFixed(2),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  hasLinkedCard
-                                      ? linkedCardNumber!
-                                      : "D000",
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 12,
-                                    fontFamily: 'Courier',
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                                // Right Column: User Name & Card Code stacked vertically
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      userName.toUpperCase(),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      hasLinkedCard
+                                          ? linkedCardNumber!
+                                          : "D000",
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 11,
+                                        fontFamily: 'Courier',
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
