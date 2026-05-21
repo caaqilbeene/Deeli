@@ -25,9 +25,19 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
   bool isUploadingLogo = false;
   bool isLoadingData = true;
   bool isProcessingAction = false;
-  bool isAdmin = false; // Flag to restrict logo upload & show leaderboard to admins only
-  List<Map<String, dynamic>> topCustomers = []; // Leaderboard list for Admins
+  bool isAdmin = false; // Restricted strictly to super@deeli.com
+
+  // Super Admin Leaderboard
+  List<Map<String, dynamic>> topCustomers = []; 
   bool isLoadingTopCustomers = false;
+
+  // Super Admin Card Lookup
+  final TextEditingController searchController = TextEditingController();
+  String searchCardCode = "";
+  Map<String, dynamic>? searchCardResult;
+  String? searchCardOwnerName;
+  bool isSearchingCard = false;
+  String? searchCardError;
 
   final TextEditingController cardController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
@@ -126,7 +136,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
         print("Error fetching user wallet from Supabase: $e");
       }
 
-      // If user is admin, fetch the top earners leaderboard
+      // If user is super admin, fetch the top earners leaderboard
       if (isAdmin) {
         await _fetchTopCustomers();
       }
@@ -158,6 +168,66 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
     } finally {
       setState(() {
         isLoadingTopCustomers = false;
+      });
+    }
+  }
+
+  Future<void> _searchCardDetails() async {
+    final String codeToSearch = searchController.text.trim().toUpperCase();
+    if (codeToSearch.length != 4) {
+      setState(() {
+        searchCardError = "Fadlan geli nambar 4 xaraf ah!";
+        searchCardResult = null;
+        searchCardOwnerName = null;
+      });
+      return;
+    }
+
+    setState(() {
+      isSearchingCard = true;
+      searchCardError = null;
+      searchCardResult = null;
+      searchCardOwnerName = null;
+    });
+
+    try {
+      final cardRes = await Supabase.instance.client
+          .from('physical_cards')
+          .select('card_number, status, balance, linked_user_id')
+          .eq('card_number', codeToSearch)
+          .maybeSingle();
+
+      if (cardRes == null) {
+        setState(() {
+          searchCardError = "Nambarka kaarkaan kuma jiro diiwaanka!";
+        });
+        return;
+      }
+
+      setState(() {
+        searchCardResult = Map<String, dynamic>.from(cardRes);
+      });
+
+      final String? ownerId = cardRes['linked_user_id'];
+      if (ownerId != null) {
+        final userRes = await Supabase.instance.client
+            .from('users')
+            .select('name')
+            .eq('id', ownerId)
+            .maybeSingle();
+        if (userRes != null && userRes['name'] != null) {
+          setState(() {
+            searchCardOwnerName = userRes['name'];
+          });
+        }
+      }
+    } catch (e) {
+      setState(() {
+        searchCardError = "Cillad ayaa dhacday intii baaritaanku socday.";
+      });
+    } finally {
+      setState(() {
+        isSearchingCard = false;
       });
     }
   }
@@ -397,10 +467,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
     if (localLogoPath != null && File(localLogoPath!).existsSync()) {
       logoImage = FileImage(File(localLogoPath!));
     } else if (remoteLogoUrl != null) {
-      networkImageFallback() {
-        return NetworkImage(remoteLogoUrl!);
-      }
-      logoImage = networkImageFallback();
+      logoImage = NetworkImage(remoteLogoUrl!);
     }
 
     final bool hasLinkedCard = linkedCardNumber != null && linkedCardNumber!.isNotEmpty;
@@ -427,7 +494,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
       body: isLoadingData
           ? const Center(
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF455A64)), // BlueGrey loader color
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF455A64)), // BlueGrey loader
               ),
             )
           : SingleChildScrollView(
@@ -444,7 +511,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                         height: 140, // Ultra-slim height
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
-                            colors: [Color(0xFF37474F), Color(0xFF546E7A)], // Premium BlueGrey gradients
+                            colors: [Color(0xFF37474F), Color(0xFF546E7A)],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
@@ -683,7 +750,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                     style: const TextStyle(
                                       fontSize: 18,
                                       fontWeight: FontWeight.bold,
-                                      color: Color(0xFF37474F), // Premium BlueGrey color
+                                      color: Color(0xFF37474F),
                                     ),
                                   ),
                                 ],
@@ -751,7 +818,6 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                           if (trimmed.length != 4) {
                             return "Nambarka kaarku waa inuu ahaadaa 4 xaraf/nambar!";
                           }
-                          // Validate it starts with a letter
                           final firstChar = trimmed.substring(0, 1);
                           if (!RegExp(r'[a-zA-Z]').hasMatch(firstChar)) {
                             return "Waa inuu ku bilaabmo xaraf (Tusaale: D101)!";
@@ -770,7 +836,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                               ? null
                               : (hasLinkedCard ? _withdrawBonus : _linkPhysicalCard),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF37474F), // Premium BlueGrey
+                            backgroundColor: const Color(0xFF37474F),
                             foregroundColor: Colors.white,
                             elevation: 0,
                             shape: RoundedRectangleBorder(
@@ -792,11 +858,152 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                 ),
                         ),
                       ),
-                      const SizedBox(height: 32),
 
-                      // 6. ADMIN LEADERBOARD SECTION (Visible ONLY to Admins)
+                      // 6. SUPER ADMIN SECTIONS (Lookup & Leaderboard)
                       if (isAdmin) ...[
-                        const Divider(height: 32),
+                        const Divider(height: 48),
+
+                        // CARD SEARCH/LOOKUP SECTION
+                        const Text(
+                          "Hubi Nambarka Kaarka (Card Lookup)",
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          "Geli 4-ta xaraf ee kaarka si aad u hubiso haddii uu sax yahay iyo inta ku jirta.",
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.black54,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: searchController,
+                                keyboardType: TextInputType.text,
+                                autocorrect: false,
+                                textCapitalization: TextCapitalization.characters,
+                                decoration: InputDecoration(
+                                  hintText: "Geli 4 xaraf (Tusaale: D101)",
+                                  filled: true,
+                                  fillColor: Colors.grey.shade100,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            SizedBox(
+                              height: 48,
+                              child: ElevatedButton(
+                                onPressed: isSearchingCard ? null : _searchCardDetails,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF37474F),
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: isSearchingCard
+                                    ? const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                        ),
+                                      )
+                                    : const Icon(Icons.search),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (searchCardError != null) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            searchCardError!,
+                            style: const TextStyle(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                        if (searchCardResult != null) ...[
+                          const SizedBox(height: 16),
+                          Container(
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade50,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade200),
+                            ),
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      "Kaarka: ${searchCardResult!['card_number']}",
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: searchCardResult!['status'] == 'active'
+                                            ? Colors.green.shade100
+                                            : Colors.orange.shade100,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        searchCardResult!['status'].toString().toUpperCase(),
+                                        style: TextStyle(
+                                          color: searchCardResult!['status'] == 'active' ? Colors.green : Colors.orange,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const Divider(height: 20),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text("Lacagta ku jirta (Balance):", style: TextStyle(fontSize: 13, color: Colors.black54)),
+                                    Text(
+                                      ((searchCardResult!['balance'] ?? 0.0) as num).toDouble().toStringAsFixed(2),
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF37474F)),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text("Hada ku xiran (Owner):", style: TextStyle(fontSize: 13, color: Colors.black54)),
+                                    Text(
+                                      searchCardOwnerName ?? "Lama xirin",
+                                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.black87),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+
+                        const Divider(height: 48),
+
+                        // LEADERBOARD SECTION
                         const Text(
                           "Macamiisha Ugu Dhibcaha Badan (Top Customers)",
                           style: TextStyle(
@@ -845,7 +1052,6 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                               final double balance = (customer['bonus_balance'] as num?)?.toDouble() ?? 0.0;
                               final String phone = customer['phone'] ?? "N/A";
 
-                              // Medal or Index indicator
                               String rankPrefix = "${index + 1}. ";
                               if (index == 0) rankPrefix = "🥇 ";
                               if (index == 1) rankPrefix = "🥈 ";
