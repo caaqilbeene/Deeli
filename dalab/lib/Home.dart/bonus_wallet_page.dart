@@ -393,17 +393,17 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 1. PREMIUM ORANGE CARD (Virtual Balance Display - Sleek Height)
+                      // 1. PREMIUM SLIM CARD (Waafi/Classic Credit Card aspect ratio - height 180)
                       Container(
                         width: double.infinity,
-                        height: 190, // Reduced card height
+                        height: 180, // Decreased card height to match credit card proportions
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
                             colors: [Color(0xFFFF6D24), Color(0xFFFF8E53)],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
-                          borderRadius: BorderRadius.circular(24),
+                          borderRadius: BorderRadius.circular(20), // standard rounded corners
                           boxShadow: [
                             BoxShadow(
                               color: const Color(0xFFFF6D24).withOpacity(0.12),
@@ -428,8 +428,8 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                         alignment: Alignment.center,
                                         children: [
                                           Container(
-                                            width: 40,
-                                            height: 40,
+                                            width: 36,
+                                            height: 36,
                                             decoration: const BoxDecoration(
                                               color: Colors.white,
                                               shape: BoxShape.circle,
@@ -445,14 +445,14 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                                   : const Icon(
                                                       Icons.restaurant,
                                                       color: Color(0xFFFF6D24),
-                                                      size: 20,
+                                                      size: 18,
                                                     ),
                                             ),
                                           ),
                                           if (isUploadingLogo)
                                             const SizedBox(
-                                              width: 40,
-                                              height: 40,
+                                              width: 36,
+                                              height: 36,
                                               child: CircularProgressIndicator(
                                                 strokeWidth: 2,
                                                 valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF6D24)),
@@ -471,7 +471,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                                 child: const Icon(
                                                   Icons.camera_alt,
                                                   color: Colors.white,
-                                                  size: 8,
+                                                  size: 7,
                                                 ),
                                               ),
                                             ),
@@ -483,22 +483,41 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                         style: TextStyle(
                                           color: Colors.white,
                                           fontWeight: FontWeight.bold,
-                                          fontSize: 16,
+                                          fontSize: 15,
                                           letterSpacing: 1.5,
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
-                                // Card indicator text
-                                const Text(
-                                  "VIRTUAL BONUS",
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 10,
-                                    letterSpacing: 1.0,
-                                  ),
+                                // Overlapping circular icons representing loyalty (mimicking Mastercard)
+                                Row(
+                                  children: [
+                                    Stack(
+                                      children: [
+                                        Container(
+                                          width: 24,
+                                          height: 24,
+                                          decoration: BoxDecoration(
+                                            color: Colors.red.withOpacity(0.85),
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                        Positioned(
+                                          left: 12,
+                                          child: Container(
+                                            width: 24,
+                                            height: 24,
+                                            decoration: BoxDecoration(
+                                              color: Colors.orange.withOpacity(0.85),
+                                              shape: BoxShape.circle,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(width: 28), // padding for overlapping circles
+                                  ],
                                 ),
                               ],
                             ),
@@ -508,15 +527,15 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                               "Accumulated Bonus",
                               style: TextStyle(
                                 color: Colors.white70,
-                                fontSize: 13,
+                                fontSize: 12,
                               ),
                             ),
-                            const SizedBox(height: 2),
+                            const SizedBox(height: 1),
                             Text(
                               bonusBalance.toStringAsFixed(2),
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 28,
+                                fontSize: 26,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -529,7 +548,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                   userName.toUpperCase(),
                                   style: const TextStyle(
                                     color: Colors.white,
-                                    fontSize: 14,
+                                    fontSize: 13,
                                     fontWeight: FontWeight.w600,
                                     letterSpacing: 0.5,
                                   ),
@@ -540,7 +559,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                       : "**** **** **** 3264",
                                   style: const TextStyle(
                                     color: Colors.white70,
-                                    fontSize: 13,
+                                    fontSize: 12,
                                     fontFamily: 'Courier',
                                     fontWeight: FontWeight.bold,
                                   ),
