@@ -33,10 +33,12 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
 
   // Super Admin Card Lookup
   final TextEditingController searchController = TextEditingController();
+  final TextEditingController deductController = TextEditingController();
   String searchCardCode = "";
   Map<String, dynamic>? searchCardResult;
   String? searchCardOwnerName;
   bool isSearchingCard = false;
+  bool isDeductingCard = false;
   String? searchCardError;
 
   final TextEditingController cardController = TextEditingController();
@@ -228,6 +230,79 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
     } finally {
       setState(() {
         isSearchingCard = false;
+      });
+    }
+  }
+
+  Future<void> _deductCardBalance() async {
+    final double? amount = double.tryParse(deductController.text.trim());
+    if (amount == null || amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Fadlan geli lacag sax ah oo eber ka weyn!"),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    final double currentBal = ((searchCardResult!['balance'] ?? 0.0) as num).toDouble();
+    if (amount > currentBal) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Digniin: Lacagta ku jirta kaarka ayaa ka yar inta aad jarayso!"),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      isDeductingCard = true;
+    });
+
+    try {
+      final double newBal = currentBal - amount;
+      await Supabase.instance.client
+          .from('physical_cards')
+          .update({'balance': newBal})
+          .eq('card_number', searchCardResult!['card_number']);
+
+      setState(() {
+        searchCardResult!['balance'] = newBal;
+        deductController.clear();
+      });
+
+      // Update current user's local balance dynamically if they are looking up their own card
+      if (linkedCardNumber == searchCardResult!['card_number']) {
+        setState(() {
+          physicalCardBalance = newBal;
+        });
+      }
+
+      // Also reload admin leaderboard in case balances shifted
+      await _fetchTopCustomers();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Masha Allah, ${amount.toStringAsFixed(2)} si guul leh ayaa looga jaray kaarka!"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Cillad ayaa dhacday intii lacagta laga jarayay kaarka."),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } finally {
+      setState(() {
+        isDeductingCard = false;
       });
     }
   }
@@ -993,6 +1068,57 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                     Text(
                                       searchCardOwnerName ?? "Lama xirin",
                                       style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.black87),
+                                    ),
+                                  ],
+                                ),
+                                const Divider(height: 24),
+                                const Text(
+                                  "Lacag Ka Jar Kaarka (Deduct Balance)",
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87),
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextField(
+                                        controller: deductController,
+                                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                        decoration: InputDecoration(
+                                          hintText: "Geli inta laga jarayo",
+                                          filled: true,
+                                          fillColor: Colors.white,
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(8),
+                                            borderSide: BorderSide(color: Colors.grey.shade300),
+                                          ),
+                                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    SizedBox(
+                                      height: 36,
+                                      child: ElevatedButton(
+                                        onPressed: isDeductingCard ? null : _deductCardBalance,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.redAccent,
+                                          foregroundColor: Colors.white,
+                                          elevation: 0,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                        ),
+                                        child: isDeductingCard
+                                            ? const SizedBox(
+                                                width: 16,
+                                                height: 16,
+                                                child: CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                                ),
+                                              )
+                                            : const Text("Ka Jar", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                      ),
                                     ),
                                   ],
                                 ),
