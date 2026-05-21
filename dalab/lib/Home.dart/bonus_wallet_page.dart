@@ -25,6 +25,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
   bool isUploadingLogo = false;
   bool isLoadingData = true;
   bool isProcessingAction = false;
+  bool isAdmin = false; // Flag to restrict logo upload to admins only
 
   final TextEditingController cardController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
@@ -60,26 +61,46 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
     // Fetch live data from Supabase
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
+      // Check if current user is an administrator
+      final String? email = user.email;
+      if (email != null) {
+        final String lowerEmail = email.toLowerCase();
+        if (lowerEmail == 'super@deeli.com' ||
+            lowerEmail == 'staff@deeli.com' ||
+            lowerEmail.endsWith('@deeli.com')) {
+          setState(() {
+            isAdmin = true;
+          });
+        }
+      }
+
       try {
         final data = await Supabase.instance.client
             .from('users')
-            .select('bonus_balance, linked_card')
+            .select('bonus_balance, linked_card, name')
             .eq('id', user.uid)
             .maybeSingle();
 
         if (data != null) {
           final double dbBalance = (data['bonus_balance'] as num?)?.toDouble() ?? bonusBalance;
           final String? dbCard = data['linked_card'] as String?;
+          final String? dbName = data['name'] as String?;
 
           setState(() {
             bonusBalance = dbBalance;
             linkedCardNumber = dbCard;
+            if (dbName != null && dbName.isNotEmpty) {
+              userName = dbName;
+            }
             if (dbCard != null) {
               cardController.text = dbCard;
             }
           });
 
           await prefs.setDouble('bonus_balance', dbBalance);
+          if (dbName != null && dbName.isNotEmpty) {
+            await prefs.setString('profile_name', dbName);
+          }
           if (dbCard != null) {
             await prefs.setString('linked_card_number', dbCard);
           } else {
@@ -112,6 +133,8 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
   }
 
   Future<void> _pickAndUploadLogo() async {
+    if (!isAdmin) return; // Guard clause
+
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
     if (pickedFile != null) {
       setState(() {
@@ -370,10 +393,10 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 1. PREMIUM ORANGE CARD (Virtual Balance Display)
+                      // 1. PREMIUM ORANGE CARD (Virtual Balance Display - Sleek Height)
                       Container(
                         width: double.infinity,
-                        height: 220,
+                        height: 190, // Reduced card height
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
                             colors: [Color(0xFFFF6D24), Color(0xFFFF8E53)],
@@ -389,7 +412,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                             ),
                           ],
                         ),
-                        padding: const EdgeInsets.all(24),
+                        padding: const EdgeInsets.all(20),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -398,15 +421,15 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                               children: [
                                 // Restaurant Logo on the left
                                 GestureDetector(
-                                  onTap: _pickAndUploadLogo,
+                                  onTap: isAdmin ? _pickAndUploadLogo : null,
                                   child: Row(
                                     children: [
                                       Stack(
                                         alignment: Alignment.center,
                                         children: [
                                           Container(
-                                            width: 44,
-                                            height: 44,
+                                            width: 40,
+                                            height: 40,
                                             decoration: const BoxDecoration(
                                               color: Colors.white,
                                               shape: BoxShape.circle,
@@ -422,20 +445,20 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                                   : const Icon(
                                                       Icons.restaurant,
                                                       color: Color(0xFFFF6D24),
-                                                      size: 22,
+                                                      size: 20,
                                                     ),
                                             ),
                                           ),
                                           if (isUploadingLogo)
                                             const SizedBox(
-                                              width: 44,
-                                              height: 44,
+                                              width: 40,
+                                              height: 40,
                                               child: CircularProgressIndicator(
                                                 strokeWidth: 2,
                                                 valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF6D24)),
                                               ),
                                             )
-                                          else
+                                          else if (isAdmin)
                                             Positioned(
                                               bottom: 0,
                                               right: 0,
@@ -448,19 +471,19 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                                 child: const Icon(
                                                   Icons.camera_alt,
                                                   color: Colors.white,
-                                                  size: 10,
+                                                  size: 8,
                                                 ),
                                               ),
                                             ),
                                         ],
                                       ),
-                                      const SizedBox(width: 10),
+                                      const SizedBox(width: 8),
                                       const Text(
                                         "DEELI",
                                         style: TextStyle(
                                           color: Colors.white,
                                           fontWeight: FontWeight.bold,
-                                          fontSize: 18,
+                                          fontSize: 16,
                                           letterSpacing: 1.5,
                                         ),
                                       ),
@@ -473,7 +496,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                   style: TextStyle(
                                     color: Colors.white70,
                                     fontWeight: FontWeight.bold,
-                                    fontSize: 11,
+                                    fontSize: 10,
                                     letterSpacing: 1.0,
                                   ),
                                 ),
@@ -485,15 +508,15 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                               "Accumulated Bonus",
                               style: TextStyle(
                                 color: Colors.white70,
-                                fontSize: 14,
+                                fontSize: 13,
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 2),
                             Text(
                               bonusBalance.toStringAsFixed(2),
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 32,
+                                fontSize: 28,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -506,7 +529,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                   userName.toUpperCase(),
                                   style: const TextStyle(
                                     color: Colors.white,
-                                    fontSize: 15,
+                                    fontSize: 14,
                                     fontWeight: FontWeight.w600,
                                     letterSpacing: 0.5,
                                   ),
@@ -517,7 +540,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                       : "**** **** **** 3264",
                                   style: const TextStyle(
                                     color: Colors.white70,
-                                    fontSize: 14,
+                                    fontSize: 13,
                                     fontFamily: 'Courier',
                                     fontWeight: FontWeight.bold,
                                   ),
