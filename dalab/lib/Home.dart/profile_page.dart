@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dalab/Home.dart/bonus_wallet_page.dart';
 import 'package:dalab/auth/loginpage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -879,6 +880,32 @@ class _ProfilePageState extends State<ProfilePage> {
                     ],
                   ),
                   // LOCATION MAP ROW END
+                  SizedBox(height: 10),
+                  // BONUS WALLET ROW START
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const BonusWalletPage(),
+                        ),
+                      );
+                    },
+                    child: Row(
+                      children: [
+                        const Icon(Icons.wallet, color: Colors.black54),
+                        const SizedBox(width: 12),
+                        const Text(
+                          "Bonus Wallet",
+                          style: TextStyle(fontSize: 17, color: Colors.black54),
+                        ),
+                        const Spacer(),
+                        Icon(Icons.chevron_right, color: Colors.grey.shade400),
+                      ],
+                    ),
+                  ),
+                  // BONUS WALLET ROW END
                   SizedBox(height: 36),
                   Text(
                     "General",
