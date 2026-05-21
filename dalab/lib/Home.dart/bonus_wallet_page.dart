@@ -26,7 +26,6 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
   bool isProcessingAction = false;
 
   final TextEditingController cardController = TextEditingController();
-  final TextEditingController amountController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   final ImagePicker picker = ImagePicker();
 
@@ -229,11 +228,11 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
   Future<void> _withdrawBonus() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final double withdrawAmount = double.tryParse(amountController.text) ?? 0.0;
-    if (withdrawAmount > bonusBalance) {
+    final double withdrawAmount = bonusBalance;
+    if (withdrawAmount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Boniska aad haysato ayaa ka yar inta aad codsatay!"),
+          content: Text("Ma haysatid wax bonus ah oo aad la bixi karto!"),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -247,7 +246,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
       isProcessingAction = true;
     });
 
-    final double newBalance = bonusBalance - withdrawAmount;
+    const double newBalance = 0.0; // Reset balance back to 0.0
 
     try {
       // Update balance securely in the database
@@ -264,14 +263,12 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
         isProcessingAction = false;
       });
 
-      amountController.clear();
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Masha Allah, \$${withdrawAmount.toStringAsFixed(2)} waxaa lagu shubay kaarkaaga!"),
+            content: Text("Masha Allah, ${withdrawAmount.toStringAsFixed(2)} bonus oo dhan waxaa lagu shubay kaarkaaga, haddana eber (0) ayuu ka bilaabanayaa!"),
             backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
+            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -347,9 +344,9 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                           borderRadius: BorderRadius.circular(24),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFFF6D24).withOpacity(0.35),
-                              blurRadius: 20,
-                              offset: const Offset(0, 10),
+                              color: const Color(0xFFFF6D24).withOpacity(0.12),
+                              blurRadius: 10,
+                              offset: const Offset(0, 5),
                             ),
                           ],
                         ),
@@ -454,7 +451,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              "\$${bonusBalance.toStringAsFixed(2)}",
+                              bonusBalance.toStringAsFixed(2),
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 32,
@@ -550,48 +547,9 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                           return null;
                         },
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 32),
 
-                      // 4. AMOUNT FIELD (Only show if card is already linked!)
-                      if (hasLinkedCard) ...[
-                        const Text(
-                          "Cadadka aad la baxayso (Amount)",
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black54,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          controller: amountController,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            hintText: "Tusaale: 50",
-                            prefixIcon: const Icon(CupertinoIcons.money_dollar, color: Color(0xFFFF6D24)),
-                            filled: true,
-                            fillColor: Colors.grey.shade100,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide.none,
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return "Fadlan qor cadadka aad la baxayso!";
-                            }
-                            final amt = double.tryParse(value);
-                            if (amt == null || amt <= 0) {
-                              return "Fadlan geli cadad sax ah oo ka weyn 0!";
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 32),
-                      ],
-
-                      // 5. ACTION BUTTON (Link Card or Withdraw)
+                      // 4. ACTION BUTTON (Link Card or Withdraw)
                       SizedBox(
                         width: double.infinity,
                         height: 54,
