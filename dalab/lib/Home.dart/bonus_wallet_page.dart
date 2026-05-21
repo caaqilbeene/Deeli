@@ -15,7 +15,8 @@ class BonusWalletPage extends StatefulWidget {
 }
 
 class _BonusWalletPageState extends State<BonusWalletPage> {
-  double bonusBalance = 150.00; // Default mock bonus
+  double bonusBalance = 150.00; // Virtual bonus balance
+  double physicalCardBalance = 0.0; // Loaded physical card balance
   String userName = "Mohamed Ali";
   String? localLogoPath;
   String? remoteLogoUrl;
@@ -83,6 +84,21 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
             await prefs.setString('linked_card_number', dbCard);
           } else {
             await prefs.remove('linked_card_number');
+          }
+
+          // If there is a linked card, fetch its physical balance
+          if (dbCard != null) {
+            final cardData = await Supabase.instance.client
+                .from('physical_cards')
+                .select('balance')
+                .eq('card_number', dbCard)
+                .maybeSingle();
+
+            if (cardData != null && cardData['balance'] != null) {
+              setState(() {
+                physicalCardBalance = (cardData['balance'] as num).toDouble();
+              });
+            }
           }
         }
       } catch (e) {
@@ -168,7 +184,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
       // 1. Verify card exists and is available
       final cardData = await Supabase.instance.client
           .from('physical_cards')
-          .select('status')
+          .select('status, balance')
           .eq('card_number', inputCard)
           .maybeSingle();
 
@@ -180,6 +196,8 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
       if (status != 'available') {
         throw "Kaarkaan mar hore ayaa la isticmaalay ama waa la xannibay!";
       }
+
+      final double initialCardBalance = (cardData['balance'] as num?)?.toDouble() ?? 0.0;
 
       // 2. Link the card to this user in physical_cards
       await Supabase.instance.client.from('physical_cards').update({
@@ -198,6 +216,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
 
       setState(() {
         linkedCardNumber = inputCard;
+        physicalCardBalance = initialCardBalance;
         isProcessingAction = false;
       });
 
@@ -279,6 +298,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
 
       setState(() {
         bonusBalance = newBalance;
+        physicalCardBalance = newCardBalance;
         isProcessingAction = false;
       });
 
@@ -350,7 +370,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 1. PREMIUM ORANGE CARD
+                      // 1. PREMIUM ORANGE CARD (Virtual Balance Display)
                       Container(
                         width: double.infinity,
                         height: 220,
@@ -449,7 +469,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                 ),
                                 // Card indicator text
                                 const Text(
-                                  "LOYALTY CARD",
+                                  "VIRTUAL BONUS",
                                   style: TextStyle(
                                     color: Colors.white70,
                                     fontWeight: FontWeight.bold,
@@ -462,7 +482,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                             const Spacer(),
                             // Bonus Balance Display
                             const Text(
-                              "Bonus Balance",
+                              "Accumulated Bonus",
                               style: TextStyle(
                                 color: Colors.white70,
                                 fontSize: 14,
@@ -507,11 +527,94 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 36),
+                      const SizedBox(height: 24),
 
-                      // 2. ACTION SECTION
+                      // 2. PHYSICAL CARD STATUS (Only show if linked)
+                      if (hasLinkedCard) ...[
+                        Container(
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    "Kaarkaaga Physical-ka ah",
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.shade100,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Text(
+                                      "Active",
+                                      style: TextStyle(
+                                        color: Colors.green,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const Divider(height: 24),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    "Nambarka:",
+                                    style: TextStyle(color: Colors.black54, fontSize: 13),
+                                  ),
+                                  Text(
+                                    linkedCardNumber!,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                      fontFamily: 'Courier',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    "Lacagta ku jirta (Balance):",
+                                    style: TextStyle(color: Colors.black54, fontSize: 13),
+                                  ),
+                                  Text(
+                                    physicalCardBalance.toStringAsFixed(2),
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFFFF6D24),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+
+                      // 3. ACTION SECTION
                       Text(
-                        hasLinkedCard ? "Withdraw" : "Link Physical Card",
+                        hasLinkedCard ? "Withdraw to Card" : "Link Physical Card",
                         style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
@@ -521,7 +624,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                       const SizedBox(height: 8),
                       Text(
                         hasLinkedCard
-                            ? "Ku shubo boniskaaga kaarkaaga rasmiga ah (Physical Card) si aad lacag la'aan wax ugu iibsato maqaayadda dhexdeeda."
+                            ? "Ku shubo dhammaan boniskaaga virtual-ka ah kaarkaaga physical-ka ah si aad maqaayadda uga adeegato."
                             : "Geli 16-ka nambar ee kaarka physical-ka ah si aad ugu xirato koontadaada abka oo aad boniska ugu shubato.",
                         style: const TextStyle(
                           fontSize: 14,
@@ -531,7 +634,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                       ),
                       const SizedBox(height: 24),
 
-                      // 3. CARD NUMBER FIELD
+                      // 4. CARD NUMBER FIELD
                       const Text(
                         "Nambarka Kaarka (Card Number)",
                         style: TextStyle(
@@ -568,7 +671,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                       ),
                       const SizedBox(height: 32),
 
-                      // 4. ACTION BUTTON (Link Card or Withdraw)
+                      // 5. ACTION BUTTON (Link Card or Withdraw)
                       SizedBox(
                         width: double.infinity,
                         height: 54,
