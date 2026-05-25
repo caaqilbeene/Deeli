@@ -106,20 +106,45 @@ class _OTPPageState extends State<OTPPage> {
 
         // Save to Supabase 'users' table
         try {
-          final existingRecord = await Supabase.instance.client
-              .from('users')
-              .select('name')
-              .eq('id', user.uid)
-              .maybeSingle();
+          Map<String, dynamic>? existingRecord;
+          try {
+            existingRecord = await Supabase.instance.client
+                .from('users')
+                .select('name, district')
+                .eq('id', user.uid)
+                .maybeSingle();
+          } catch (_) {
+            existingRecord = await Supabase.instance.client
+                .from('users')
+                .select('name')
+                .eq('id', user.uid)
+                .maybeSingle();
+          }
 
           String finalNameToSave = nameToSave;
           if (finalNameToSave.isEmpty && existingRecord != null && existingRecord['name'] != null) {
             finalNameToSave = existingRecord['name'].toString();
           }
 
+          String finalDistrictToSave = "";
+          if (existingRecord != null && existingRecord.containsKey('district') && existingRecord['district'] != null) {
+            finalDistrictToSave = existingRecord['district'].toString();
+          }
+
+          if (finalDistrictToSave.isNotEmpty) {
+            await prefs.setString('selected_district', finalDistrictToSave);
+          }
+
           if (finalNameToSave.isNotEmpty) {
-            await user.updateDisplayName(finalNameToSave);
+            final combinedName = finalDistrictToSave.isNotEmpty
+                ? "$finalNameToSave|$finalDistrictToSave"
+                : finalNameToSave;
+            await user.updateDisplayName(combinedName);
+            await user.reload();
             await prefs.setString('profile_name', finalNameToSave);
+          } else if (finalDistrictToSave.isNotEmpty) {
+            await user.updateDisplayName("|$finalDistrictToSave");
+            await user.reload();
           }
 
           final Map<String, dynamic> upsertData = {
@@ -130,12 +155,22 @@ class _OTPPageState extends State<OTPPage> {
           if (finalNameToSave.isNotEmpty) {
             upsertData['name'] = finalNameToSave;
           }
+          if (finalDistrictToSave.isNotEmpty) {
+            upsertData['district'] = finalDistrictToSave;
+          }
 
           if (existingRecord == null) {
             upsertData['created_at'] = user.metadata.creationTime?.toIso8601String() ?? DateTime.now().toIso8601String();
           }
 
-          await Supabase.instance.client.from('users').upsert(upsertData);
+          try {
+            await Supabase.instance.client.from('users').upsert(upsertData);
+          } catch (_) {
+            if (upsertData.containsKey('district')) {
+              upsertData.remove('district');
+              await Supabase.instance.client.from('users').upsert(upsertData);
+            }
+          }
         } catch (supabaseError) {
           print("Supabase user save error (table might not exist yet): $supabaseError");
           if (nameToSave.isNotEmpty) {

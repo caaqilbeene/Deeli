@@ -602,6 +602,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         try {
                           final combinedName = "$formattedName|$selectedDistrict";
                           await user.updateDisplayName(combinedName);
+                          await user.reload();
                           await Supabase.instance.client.from('users').upsert({
                             'id': user.uid,
                             'phone': user.phoneNumber,
@@ -781,7 +782,9 @@ class _ProfilePageState extends State<ProfilePage> {
                             final user = FirebaseAuth.instance.currentUser;
                             if (user != null) {
                               final combinedName = "$profileName|$mappedValue";
-                              user.updateDisplayName(combinedName).catchError((e) {
+                              user.updateDisplayName(combinedName).then((_) async {
+                                 await user.reload();
+                               }).catchError((e) {
                                 print("Firebase displayName update failed: $e");
                               });
                               Supabase.instance.client
