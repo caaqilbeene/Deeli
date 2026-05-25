@@ -38,10 +38,19 @@ class _ProfilePageState extends State<ProfilePage> {
   File? backgroundImage;
   String? profileImageUrl;
   String? backgroundImageUrl;
-  String profileName = "Mohamed Ali";
+  String profileName = ""; // Madhan - Supabase/Firebase ka soo gashan
   double backgroundY = 0;
-  String selectedDistrict = "Hodan";
-  String joinedDate = "22 Apr, 2026";
+  String selectedDistrict = ""; // Madhan ilaa qofku dooro
+  String joinedDate = "";
+
+  bool get isProfileComplete {
+    final hasImage =
+        localProfileImage != null ||
+        (profileImageUrl != null && profileImageUrl!.isNotEmpty) ||
+        widget.profileImage != null;
+    final hasDistrict = selectedDistrict.isNotEmpty;
+    return hasImage && hasDistrict;
+  }
 
   @override
   void initState() {
@@ -51,8 +60,19 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> loadProfileData() async {
     final prefs = await SharedPreferences.getInstance();
+    final user = FirebaseAuth.instance.currentUser;
+    final String? displayName = user?.displayName;
     setState(() {
-      profileName = prefs.getString('profile_name') ?? "Mohamed Ali";
+      final rawName = prefs.getString('profile_name') ?? (displayName ?? "");
+      if (rawName.contains('|')) {
+        final parts = rawName.split('|');
+        profileName = parts[0];
+        selectedDistrict = parts[1];
+        prefs.setString('selected_district', parts[1]);
+      } else {
+        profileName = rawName;
+        selectedDistrict = prefs.getString('selected_district') ?? "";
+      }
 
       final profPath = prefs.getString('profile_image_path');
       if (profPath != null && profPath.isNotEmpty) {
@@ -83,25 +103,35 @@ class _ProfilePageState extends State<ProfilePage> {
       }
 
       backgroundY = prefs.getDouble('background_y') ?? 0.0;
-      selectedDistrict = prefs.getString('selected_district') ?? "Hodan";
-      joinedDate = prefs.getString('joined_date') ?? "22 Apr, 2026";
+      joinedDate = prefs.getString('joined_date') ?? "";
     });
 
-    final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       // 1. Fetch current profile from Supabase to sync across devices/re-installs
       try {
-        final data = await Supabase.instance.client
-            .from('users')
-            .select('name, avatar_url, background_url, created_at')
-            .eq('id', user.uid)
-            .maybeSingle();
+        Map<String, dynamic>? data;
+        try {
+          data = await Supabase.instance.client
+              .from('users')
+              .select('name, avatar_url, background_url, created_at, district')
+              .eq('id', user.uid)
+              .maybeSingle();
+        } catch (_) {
+          data = await Supabase.instance.client
+              .from('users')
+              .select('name, avatar_url, background_url, created_at')
+              .eq('id', user.uid)
+              .maybeSingle();
+        }
 
         if (data != null) {
           final String? dbName = data['name'];
           final String? dbAvatar = data['avatar_url'];
           final String? dbBg = data['background_url'];
           final String? dbCreatedAt = data['created_at'];
+          final String? dbDistrict = data.containsKey('district')
+              ? data['district']
+              : null;
 
           setState(() {
             if (dbName != null && dbName.isNotEmpty) {
@@ -109,22 +139,44 @@ class _ProfilePageState extends State<ProfilePage> {
               prefs.setString('profile_name', dbName);
             }
             if (dbAvatar != null && dbAvatar.isNotEmpty) {
-              profileImageUrl = dbAvatar;
-              localProfileImage = null;
-              prefs.setString('profile_image_path', dbAvatar);
+              if (localProfileImage == null ||
+                  !localProfileImage!.existsSync()) {
+                profileImageUrl = dbAvatar;
+                localProfileImage = null;
+                prefs.setString('profile_image_path', dbAvatar);
+              }
             }
             if (dbBg != null && dbBg.isNotEmpty) {
-              backgroundImageUrl = dbBg;
-              backgroundImage = null;
-              prefs.setString('background_image_path', dbBg);
+              if (backgroundImage == null || !backgroundImage!.existsSync()) {
+                backgroundImageUrl = dbBg;
+                backgroundImage = null;
+                prefs.setString('background_image_path', dbBg);
+              }
             }
             if (dbCreatedAt != null) {
               try {
-                final dt = DateTime.parse(dbCreatedAt);
-                final months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                final dt = DateTime.parse(dbCreatedAt).toLocal();
+                final months = [
+                  "Jan",
+                  "Feb",
+                  "Mar",
+                  "Apr",
+                  "May",
+                  "Jun",
+                  "Jul",
+                  "Aug",
+                  "Sep",
+                  "Oct",
+                  "Nov",
+                  "Dec",
+                ];
                 joinedDate = "${dt.day} ${months[dt.month - 1]}, ${dt.year}";
                 prefs.setString('joined_date', joinedDate);
               } catch (_) {}
+            }
+            if (dbDistrict != null && dbDistrict.isNotEmpty) {
+              selectedDistrict = dbDistrict;
+              prefs.setString('selected_district', dbDistrict);
             }
           });
         }
@@ -134,20 +186,157 @@ class _ProfilePageState extends State<ProfilePage> {
 
       // 2. Ensure current record is updated/active in Supabase 'users' table
       try {
-        await Supabase.instance.client.from('users').upsert({
-          'id': user.uid,
-          'phone': user.phoneNumber,
-          'name': profileName,
-          'created_at': '2026-04-22T12:00:00Z', // Set to 22 April 2026 as requested!
-        });
+        // Hubi user-ku horay u jiray iyo in kale
+        final existingUser = await Supabase.instance.client
+            .from('users')
+            .select('id')
+            .eq('id', user.uid)
+            .maybeSingle();
+
+        if (existingUser == null) {
+          // USER CUSUB — created_at = hadda
+          final Map<String, dynamic> insertData = {
+            'id': user.uid,
+            'phone': user.phoneNumber,
+            'created_at': DateTime.now().toUtc().toIso8601String(),
+          };
+          if (profileName.isNotEmpty) {
+            insertData['name'] = profileName;
+          }
+          if (selectedDistrict.isNotEmpty) {
+            insertData['district'] = selectedDistrict;
+          }
+
+          try {
+            await Supabase.instance.client.from('users').insert(insertData);
+          } catch (_) {
+            if (insertData.containsKey('district')) {
+              insertData.remove('district');
+              await Supabase.instance.client.from('users').insert(insertData);
+            }
+          }
+        } else {
+          // USER JIRAY — kaliya name iyo phone update garee, created_at HA TAABAN
+          final Map<String, dynamic> updateData = {'phone': user.phoneNumber};
+          if (profileName.isNotEmpty) {
+            updateData['name'] = profileName;
+          }
+          if (selectedDistrict.isNotEmpty) {
+            updateData['district'] = selectedDistrict;
+          }
+
+          try {
+            await Supabase.instance.client
+                .from('users')
+                .update(updateData)
+                .eq('id', user.uid);
+          } catch (_) {
+            if (updateData.containsKey('district')) {
+              updateData.remove('district');
+              await Supabase.instance.client
+                  .from('users')
+                  .update(updateData)
+                  .eq('id', user.uid);
+            }
+          }
+        }
       } catch (e) {
         print("Error syncing current user to Supabase: $e");
       }
     }
+    await checkAndShowVerifiedPopup(isFromUserAction: false);
   }
 
   String getTwitterHandle(String name) {
     return '@${name.replaceAll(' ', '').toLowerCase()}';
+  }
+
+  void showVerificationSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 16),
+              const Icon(Icons.check_circle, color: Colors.blue, size: 80),
+              const SizedBox(height: 24),
+              const Text(
+                "Koontadaada waa la xaqiijiyay!",
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                "Verified",
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.blue,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                "Waad ku mahadsan tahay dhamaystirka profile-kaaga.",
+                style: TextStyle(fontSize: 14, color: Colors.black54),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 28),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    "Cancel",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> checkAndShowVerifiedPopup({bool isFromUserAction = false}) async {
+    if (!mounted) return;
+    if (FirebaseAuth.instance.currentUser == null) return;
+    if (isProfileComplete) {
+      final prefs = await SharedPreferences.getInstance();
+      final hasSeen = prefs.getBool('has_seen_verified_popup') ?? false;
+      if (!hasSeen) {
+        await prefs.setBool('has_seen_verified_popup', true);
+        if (isFromUserAction) {
+          if (mounted) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                showVerificationSuccessDialog();
+              }
+            });
+          }
+        }
+      }
+    }
   }
 
   @override
@@ -160,6 +349,8 @@ class _ProfilePageState extends State<ProfilePage> {
     if (widget.onPickProfileImage != null &&
         widget.onProfileImageChanged == null) {
       await widget.onPickProfileImage!();
+      await loadProfileData();
+      await checkAndShowVerifiedPopup(isFromUserAction: true);
       return;
     }
 
@@ -185,9 +376,10 @@ class _ProfilePageState extends State<ProfilePage> {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
-        final fileName = 'avatar_${user.uid}_${DateTime.now().millisecondsSinceEpoch}.png';
+        final fileName =
+            'avatar_${user.uid}_${DateTime.now().millisecondsSinceEpoch}.png';
         final storagePath = 'avatars/$fileName';
-        
+
         await Supabase.instance.client.storage
             .from('avatars')
             .upload(storagePath, permanentFile);
@@ -196,10 +388,8 @@ class _ProfilePageState extends State<ProfilePage> {
             .from('avatars')
             .getPublicUrl(storagePath);
 
-        await prefs.setString('profile_image_path', publicUrl);
         setState(() {
           profileImageUrl = publicUrl;
-          localProfileImage = null;
         });
 
         await Supabase.instance.client.from('users').upsert({
@@ -212,6 +402,7 @@ class _ProfilePageState extends State<ProfilePage> {
         print("Supabase Storage profile upload error: $e");
       }
     }
+    await checkAndShowVerifiedPopup(isFromUserAction: true);
   }
 
   Future<void> pickBackgroundImage() async {
@@ -239,9 +430,10 @@ class _ProfilePageState extends State<ProfilePage> {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
-        final fileName = 'bg_${user.uid}_${DateTime.now().millisecondsSinceEpoch}.png';
+        final fileName =
+            'bg_${user.uid}_${DateTime.now().millisecondsSinceEpoch}.png';
         final storagePath = 'backgrounds/$fileName';
-        
+
         await Supabase.instance.client.storage
             .from('backgrounds')
             .upload(storagePath, permanentFile);
@@ -250,10 +442,8 @@ class _ProfilePageState extends State<ProfilePage> {
             .from('backgrounds')
             .getPublicUrl(storagePath);
 
-        await prefs.setString('background_image_path', publicUrl);
         setState(() {
           backgroundImageUrl = publicUrl;
-          backgroundImage = null;
         });
 
         await Supabase.instance.client.from('users').upsert({
@@ -387,17 +577,44 @@ class _ProfilePageState extends State<ProfilePage> {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: () {
-                    final newName = nameController.text.trim();
-                    if (newName.isNotEmpty) {
+                  onPressed: () async {
+                    final rawName = nameController.text.trim();
+                    if (rawName.isNotEmpty) {
+                      final formattedName = rawName
+                          .split(RegExp(r'\s+'))
+                          .map((w) {
+                            if (w.isEmpty) return '';
+                            return w[0].toUpperCase() +
+                                w.substring(1).toLowerCase();
+                          })
+                          .join(' ');
+
                       setState(() {
-                        profileName = newName;
+                        profileName = formattedName;
                       });
-                      SharedPreferences.getInstance().then((prefs) {
-                        prefs.setString('profile_name', newName);
-                      });
+
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.setString('profile_name', formattedName);
+
+                      // Sync to Firebase and Supabase immediately
+                      final user = FirebaseAuth.instance.currentUser;
+                      if (user != null) {
+                        try {
+                          final combinedName = "$formattedName|$selectedDistrict";
+                          await user.updateDisplayName(combinedName);
+                          await Supabase.instance.client.from('users').upsert({
+                            'id': user.uid,
+                            'phone': user.phoneNumber,
+                            'name': formattedName,
+                          });
+                        } catch (e) {
+                          print(
+                            "Error syncing name update to Firebase/Supabase: $e",
+                          );
+                        }
+                      }
                     }
-                    Navigator.pop(context);
+                    if (mounted) Navigator.pop(context);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.deepOrange,
@@ -419,8 +636,8 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  void openSettingsBottomSheet() {
-    showModalBottomSheet(
+  Future<void> openSettingsBottomSheet() async {
+    await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
@@ -431,6 +648,7 @@ class _ProfilePageState extends State<ProfilePage> {
         return StatefulBuilder(
           builder: (context, sheetSetState) {
             final districts = [
+              "Dooro",
               "Hodan",
               "Waaberi",
               "Howlwadaag",
@@ -537,9 +755,11 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
-                        value: districts.contains(selectedDistrict)
+                        value:
+                            selectedDistrict.isNotEmpty &&
+                                districts.contains(selectedDistrict)
                             ? selectedDistrict
-                            : districts.first,
+                            : "Dooro",
                         isExpanded: true,
                         icon: Icon(
                           Icons.arrow_drop_down,
@@ -547,13 +767,36 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                         onChanged: (String? newValue) {
                           if (newValue != null) {
+                            final mappedValue = newValue == "Dooro"
+                                ? ""
+                                : newValue;
                             setState(() {
-                              selectedDistrict = newValue;
+                              selectedDistrict = mappedValue;
                             });
                             sheetSetState(() {});
                             SharedPreferences.getInstance().then((prefs) {
-                              prefs.setString('selected_district', newValue);
+                              prefs.setString('selected_district', mappedValue);
                             });
+                            // Background sync to Supabase
+                            final user = FirebaseAuth.instance.currentUser;
+                            if (user != null) {
+                              final combinedName = "$profileName|$mappedValue";
+                              user.updateDisplayName(combinedName).catchError((e) {
+                                print("Firebase displayName update failed: $e");
+                              });
+                              Supabase.instance.client
+                                  .from('users')
+                                  .update({
+                                    'phone': user.phoneNumber,
+                                    'district': mappedValue,
+                                  })
+                                  .eq('id', user.uid)
+                                  .catchError((e) {
+                                    print(
+                                      "District sync failed (might not exist in schema): $e",
+                                    );
+                                  });
+                            }
                           }
                         },
                         items: districts.map<DropdownMenuItem<String>>((
@@ -603,6 +846,7 @@ class _ProfilePageState extends State<ProfilePage> {
         );
       },
     );
+    await checkAndShowVerifiedPopup(isFromUserAction: true);
   }
 
   @override
@@ -623,21 +867,27 @@ class _ProfilePageState extends State<ProfilePage> {
                       height: 190,
                       width: double.infinity,
                       decoration: BoxDecoration(
-                        image: backgroundImage != null && backgroundImage!.existsSync()
+                        image:
+                            backgroundImage != null &&
+                                backgroundImage!.existsSync()
                             ? DecorationImage(
                                 image: FileImage(backgroundImage!),
                                 fit: BoxFit.cover,
                                 alignment: Alignment(0, backgroundY),
                               )
-                            : (backgroundImageUrl != null && backgroundImageUrl!.isNotEmpty
-                                ? DecorationImage(
-                                    image: NetworkImage(backgroundImageUrl!),
-                                    fit: BoxFit.cover,
-                                    alignment: Alignment(0, backgroundY),
-                                  )
-                                : null),
-                        gradient: (backgroundImage == null || !backgroundImage!.existsSync()) &&
-                                (backgroundImageUrl == null || backgroundImageUrl!.isEmpty)
+                            : (backgroundImageUrl != null &&
+                                      backgroundImageUrl!.isNotEmpty
+                                  ? DecorationImage(
+                                      image: NetworkImage(backgroundImageUrl!),
+                                      fit: BoxFit.cover,
+                                      alignment: Alignment(0, backgroundY),
+                                    )
+                                  : null),
+                        gradient:
+                            (backgroundImage == null ||
+                                    !backgroundImage!.existsSync()) &&
+                                (backgroundImageUrl == null ||
+                                    backgroundImageUrl!.isEmpty)
                             ? const LinearGradient(
                                 begin: Alignment.topCenter,
                                 end: Alignment.bottomCenter,
@@ -645,8 +895,11 @@ class _ProfilePageState extends State<ProfilePage> {
                               )
                             : null,
                       ),
-                      child: (backgroundImage == null || !backgroundImage!.existsSync()) &&
-                              (backgroundImageUrl == null || backgroundImageUrl!.isEmpty)
+                      child:
+                          (backgroundImage == null ||
+                                  !backgroundImage!.existsSync()) &&
+                              (backgroundImageUrl == null ||
+                                  backgroundImageUrl!.isEmpty)
                           ? Row(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -654,43 +907,57 @@ class _ProfilePageState extends State<ProfilePage> {
                                 Container(
                                   width: 32,
                                   height: 64,
-                                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 3,
+                                  ),
                                   color: Colors.blueGrey.shade200,
                                 ),
                                 Container(
                                   width: 44,
                                   height: 92,
-                                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 3,
+                                  ),
                                   color: Colors.blueGrey.shade200,
                                 ),
                                 Container(
                                   width: 28,
                                   height: 70,
-                                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 3,
+                                  ),
                                   color: Colors.blueGrey.shade200,
                                 ),
                                 Container(
                                   width: 54,
                                   height: 125,
-                                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 3,
+                                  ),
                                   color: Colors.blueGrey.shade200,
                                 ),
                                 Container(
                                   width: 36,
                                   height: 86,
-                                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 3,
+                                  ),
                                   color: Colors.blueGrey.shade200,
                                 ),
                                 Container(
                                   width: 46,
                                   height: 104,
-                                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 3,
+                                  ),
                                   color: Colors.blueGrey.shade200,
                                 ),
                                 Container(
                                   width: 30,
                                   height: 76,
-                                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 3,
+                                  ),
                                   color: Colors.blueGrey.shade200,
                                 ),
                               ],
@@ -746,34 +1013,40 @@ class _ProfilePageState extends State<ProfilePage> {
                                 width: 110,
                                 height: 110,
                                 color: Colors.deepOrange.shade50,
-                                child: localProfileImage != null && localProfileImage!.existsSync()
+                                child:
+                                    localProfileImage != null &&
+                                        localProfileImage!.existsSync()
                                     ? Image.file(
                                         localProfileImage!,
                                         fit: BoxFit.cover,
                                         alignment: Alignment.center,
                                       )
-                                    : (widget.profileImage != null && widget.profileImage!.existsSync()
-                                        ? Image.file(
-                                            widget.profileImage!,
-                                            fit: BoxFit.cover,
-                                            alignment: Alignment.center,
-                                          )
-                                        : (profileImageUrl != null && profileImageUrl!.isNotEmpty
-                                            ? Image.network(
-                                                profileImageUrl!,
-                                                fit: BoxFit.cover,
-                                                alignment: Alignment.center,
-                                                errorBuilder: (c, e, s) => const Icon(
-                                                  Icons.person,
-                                                  size: 56,
-                                                  color: Colors.deepOrange,
-                                                ),
-                                              )
-                                            : const Icon(
-                                                Icons.person,
-                                                size: 56,
-                                                color: Colors.deepOrange,
-                                              ))),
+                                    : (widget.profileImage != null &&
+                                              widget.profileImage!.existsSync()
+                                          ? Image.file(
+                                              widget.profileImage!,
+                                              fit: BoxFit.cover,
+                                              alignment: Alignment.center,
+                                            )
+                                          : (profileImageUrl != null &&
+                                                    profileImageUrl!.isNotEmpty
+                                                ? Image.network(
+                                                    profileImageUrl!,
+                                                    fit: BoxFit.cover,
+                                                    alignment: Alignment.center,
+                                                    errorBuilder: (c, e, s) =>
+                                                        const Icon(
+                                                          Icons.person,
+                                                          size: 56,
+                                                          color:
+                                                              Colors.deepOrange,
+                                                        ),
+                                                  )
+                                                : const Icon(
+                                                    Icons.person,
+                                                    size: 56,
+                                                    color: Colors.deepOrange,
+                                                  ))),
                               ),
                             ),
                           ),
@@ -838,7 +1111,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     children: [
                       Flexible(
                         child: Text(
-                          profileName,
+                          profileName.isNotEmpty ? profileName : "User",
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -848,39 +1121,146 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                       SizedBox(width: 6),
                       // VERIFIED ICON START
-                      // Only show if user is authenticated via Firebase
-                      if (FirebaseAuth.instance.currentUser != null)
-                        Icon(Icons.check_circle, color: Colors.blue, size: 16),
+                      // Only show if user is authenticated via Firebase and has completed their profile
+                      if (FirebaseAuth.instance.currentUser != null &&
+                          isProfileComplete)
+                        const Padding(
+                          padding: EdgeInsets.only(left: 4),
+                          child: Icon(
+                            Icons.check_circle,
+                            color: Colors.blue,
+                            size: 16,
+                          ),
+                        ),
                       // VERIFIED ICON END
                     ],
                   ),
                   SizedBox(height: 12),
                   // JOINED DATE ROW START
-                  Row(
-                    children: [
-                      Icon(Icons.calendar_month, color: Colors.black54),
-                      SizedBox(width: 12),
-                      Text(
-                        "Joined $joinedDate",
-                        style: TextStyle(fontSize: 17, color: Colors.black54),
-                      ),
-                    ],
-                  ),
+                  if (joinedDate.isNotEmpty)
+                    Row(
+                      children: [
+                        Icon(Icons.calendar_month, color: Colors.black54),
+                        SizedBox(width: 12),
+                        Text(
+                          "Joined $joinedDate",
+                          style: TextStyle(fontSize: 17, color: Colors.black54),
+                        ),
+                      ],
+                    ),
                   // JOINED DATE ROW END
                   SizedBox(height: 10),
                   // LOCATION MAP ROW START
-                  Row(
-                    children: [
-                      Icon(Icons.location_on_outlined, color: Colors.black54),
-                      SizedBox(width: 12),
-                      Text(
-                        "$selectedDistrict, Mogadishu",
-                        style: TextStyle(fontSize: 17, color: Colors.black54),
-                      ),
-                    ],
+                  // Hadda waxay u muuqataa oo keliya hadduu qofku degmo doorto
+                  GestureDetector(
+                    onTap:
+                        openSettingsBottomSheet, // Taabo si aad degmo u dooratid
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.location_on_outlined,
+                          color: selectedDistrict.isEmpty
+                              ? Colors.deepOrange
+                              : Colors.black54,
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          selectedDistrict.isEmpty
+                              ? "Dooro degmadaada →" // Placeholder marka la'aan
+                              : "$selectedDistrict, Mogadishu",
+                          style: TextStyle(
+                            fontSize: 17,
+                            color: selectedDistrict.isEmpty
+                                ? Colors.deepOrange
+                                : Colors.black54,
+                            fontWeight: selectedDistrict.isEmpty
+                                ? FontWeight.w500
+                                : FontWeight.normal,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+
                   // LOCATION MAP ROW END
-                  SizedBox(height: 10),
+
+                  // PROFILE COMPLETION CARD START
+                  if (!isProfileComplete) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFFBEB), // Soft premium amber
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: const Color(0xFFFEF3C7),
+                          width: 1.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.02),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline_rounded,
+                                color: Colors.amber.shade800,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  "Dhamaystir Profile-kaaga",
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.amber.shade900,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            "Si aad u hesho calaamada verified-ka (blue badge), fadlan buuxi shuruudaha soo socda:",
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.amber.shade900,
+                              height: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          const Divider(color: Color(0xFFFEF3C7), height: 1),
+                          const SizedBox(height: 12),
+                          _buildChecklistItem(
+                            title:
+                                "Saar sawirkaaga profile-ka (Profile Picture)",
+                            isDone:
+                                localProfileImage != null ||
+                                (profileImageUrl != null &&
+                                    profileImageUrl!.isNotEmpty),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildChecklistItem(
+                            title: "Dooro degmadaada (Select District)",
+                            isDone: selectedDistrict.isNotEmpty,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  // PROFILE COMPLETION CARD END
+                  if (isProfileComplete) const SizedBox(height: 10),
+
                   // BONUS WALLET ROW START
                   GestureDetector(
                     behavior: HitTestBehavior.opaque,
@@ -920,25 +1300,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                     child: Column(
                       children: [
-                        Padding(
-                          padding: EdgeInsets.all(16),
-                          child: Row(
-                            children: [
-                              Icon(Icons.lock, color: Colors.green),
-                              SizedBox(width: 16),
-                              Expanded(
-                                child: Text(
-                                  "Password",
-                                  style: TextStyle(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                              Icon(Icons.chevron_right),
-                            ],
-                          ),
-                        ),
                         Padding(
                           padding: EdgeInsets.all(16),
                           child: Row(
@@ -1036,6 +1397,19 @@ class _ProfilePageState extends State<ProfilePage> {
                     height: 55,
                     child: OutlinedButton.icon(
                       onPressed: () async {
+                        // Tirtir xogda user-ka hore si user cusub uu u helo slate nadiif ah
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.remove('profile_name');
+                        await prefs.remove('profile_image_path');
+                        await prefs.remove('background_image_path');
+                        await prefs.remove('background_y');
+                        await prefs.remove('selected_district');
+                        await prefs.remove('joined_date');
+                        await prefs.remove('bonus_balance');
+                        await prefs.remove('linked_card_number');
+                        await prefs.remove('restaurant_logo_path');
+                        await prefs.remove('has_seen_verified_popup');
+
                         await FirebaseAuth.instance.signOut();
                         if (context.mounted) {
                           Navigator.pushAndRemoveUntil(
@@ -1050,8 +1424,8 @@ class _ProfilePageState extends State<ProfilePage> {
                       icon: Icon(Icons.logout),
                       label: Text("Log Out"),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red,
-                        backgroundColor: Colors.red.shade50,
+                        foregroundColor: Colors.white,
+                        backgroundColor: Colors.red,
                         side: BorderSide(color: Colors.red.shade100),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
@@ -1347,6 +1721,29 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildChecklistItem({required String title, required bool isDone}) {
+    return Row(
+      children: [
+        Icon(
+          isDone ? Icons.check_circle : Icons.radio_button_unchecked,
+          color: isDone ? Colors.green.shade600 : Colors.amber.shade700,
+          size: 16,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            title,
+            style: TextStyle(
+              fontSize: 13,
+              color: isDone ? Colors.green.shade800 : Colors.amber.shade900,
+              fontWeight: isDone ? FontWeight.w500 : FontWeight.normal,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

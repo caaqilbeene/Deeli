@@ -12,7 +12,7 @@ class SuperAdminDashboard extends StatefulWidget {
 }
 
 class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
-  int _selectedTabIndex = 0; // 0: Dashboard, 1: Food Management, 2: Settings
+  int _selectedTabIndex = 0; // 0: Dashboard, 1: Food Management, 2: Loyalty Cards, 3: Settings
   final List<Map<String, dynamic>> _menuItems = [];
   bool _isLoadingMenu = false;
 
@@ -37,11 +37,28 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
 
   Map<String, dynamic>? _selectedItemToEdit;
 
+  // Super Admin Loyalty Cards & Bonuses Variables
+  final _searchCardController = TextEditingController();
+  final _deductAmountController = TextEditingController();
+  final _newCardCodeController = TextEditingController();
+
+  Map<String, dynamic>? _searchedCardData;
+  String? _searchedCardOwner;
+  bool _isSearchingCard = false;
+  bool _isDeductingCard = false;
+  bool _isAddingCard = false;
+  String? _cardSearchError;
+  String? _cardAddError;
+
+  List<Map<String, dynamic>> _topLoyaltyCustomers = [];
+  bool _isLoadingTopLoyalty = false;
+
   @override
   void initState() {
     super.initState();
     _fetchMenuItems();
     _fetchDashboardStats();
+    _fetchTopLoyaltyCustomers();
   }
 
   @override
@@ -55,6 +72,10 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
     _proteinController.dispose();
     _fatsController.dispose();
     _carbsController.dispose();
+
+    _searchCardController.dispose();
+    _deductAmountController.dispose();
+    _newCardCodeController.dispose();
     super.dispose();
   }
 
@@ -75,6 +96,210 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error loading menu items: $e')),
       );
+    }
+  }
+
+  Future<void> _fetchTopLoyaltyCustomers() async {
+    setState(() => _isLoadingTopLoyalty = true);
+    try {
+      final List<dynamic> response = await Supabase.instance.client
+          .from('users')
+          .select('name, bonus_balance, phone')
+          .order('bonus_balance', ascending: false)
+          .limit(10);
+      setState(() {
+        _topLoyaltyCustomers = List<Map<String, dynamic>>.from(response);
+      });
+    } catch (e) {
+      print("Error fetching top loyalty customers: $e");
+    } finally {
+      setState(() => _isLoadingTopLoyalty = false);
+    }
+  }
+
+  Future<void> _searchCardDetails() async {
+    final String codeToSearch = _searchCardController.text.trim().toUpperCase();
+    if (codeToSearch.length != 4) {
+      setState(() {
+        _cardSearchError = "Fadlan geli nambar 4 xaraf ah!";
+        _searchedCardData = null;
+        _searchedCardOwner = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _isSearchingCard = true;
+      _cardSearchError = null;
+      _searchedCardData = null;
+      _searchedCardOwner = null;
+    });
+
+    try {
+      final cardRes = await Supabase.instance.client
+          .from('physical_cards')
+          .select('card_number, status, balance, linked_user_id')
+          .eq('card_number', codeToSearch)
+          .maybeSingle();
+
+      if (cardRes == null) {
+        setState(() {
+          _cardSearchError = "Nambarka kaarkaan kuma jiro diiwaanka!";
+        });
+        return;
+      }
+
+      setState(() {
+        _searchedCardData = Map<String, dynamic>.from(cardRes);
+      });
+
+      final String? ownerId = cardRes['linked_user_id'];
+      if (ownerId != null) {
+        final userRes = await Supabase.instance.client
+            .from('users')
+            .select('name')
+            .eq('id', ownerId)
+            .maybeSingle();
+        if (userRes != null && userRes['name'] != null) {
+          setState(() {
+            _searchedCardOwner = userRes['name'];
+          });
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _cardSearchError = "Cillad ayaa dhacday intii baaritaanku socday.";
+      });
+    } finally {
+      setState(() {
+        _isSearchingCard = false;
+      });
+    }
+  }
+
+  Future<void> _deductCardBalance() async {
+    final double? amount = double.tryParse(_deductAmountController.text.trim());
+    if (amount == null || amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Fadlan geli lacag sax ah oo eber ka weyn!"),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    final double currentBal = ((_searchedCardData!['balance'] ?? 0.0) as num).toDouble();
+    if (amount > currentBal) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Digniin: Lacagta ku jirta kaarka ayaa ka yar inta aad jarayso!"),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isDeductingCard = true;
+    });
+
+    try {
+      final double newBal = currentBal - amount;
+      await Supabase.instance.client
+          .from('physical_cards')
+          .update({'balance': newBal})
+          .eq('card_number', _searchedCardData!['card_number']);
+
+      setState(() {
+        _searchedCardData!['balance'] = newBal;
+        _deductAmountController.clear();
+      });
+
+      // Reload leaderboard
+      await _fetchTopLoyaltyCustomers();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Si guul leh ayaa looga jaray ${amount.toStringAsFixed(2)} kaarka!"),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Cillad ayaa dhacday intii lacagta laga jarayay kaarka."),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isDeductingCard = false;
+      });
+    }
+  }
+
+  Future<void> _registerNewPhysicalCard() async {
+    final String code = _newCardCodeController.text.trim().toUpperCase();
+
+    if (code.length != 4) {
+      setState(() {
+        _cardAddError = "Nambarka kaarku waa inuu ahaadaa 4 xaraf/nambar!";
+      });
+      return;
+    }
+    final firstChar = code.substring(0, 1);
+    if (!RegExp(r'[a-zA-Z]').hasMatch(firstChar)) {
+      setState(() {
+        _cardAddError = "Koodhka waa inuu ku bilaabmo xaraf (Tusaale: D101)!";
+      });
+      return;
+    }
+
+    setState(() {
+      _isAddingCard = true;
+      _cardAddError = null;
+    });
+
+    try {
+      // Check if card code already exists
+      final existing = await Supabase.instance.client
+          .from('physical_cards')
+          .select('card_number')
+          .eq('card_number', code)
+          .maybeSingle();
+
+      if (existing != null) {
+        setState(() {
+          _cardAddError = "Koodhkan mar hore ayaa la diiwaangeliyay!";
+        });
+        return;
+      }
+
+      // Insert new card with 0.0 balance
+      await Supabase.instance.client.from('physical_cards').insert({
+        'card_number': code,
+        'status': 'available',
+        'balance': 0.0,
+      });
+
+      if (!mounted) return;
+      _newCardCodeController.clear();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Kaarka physical-ka ah si guul leh ayaa loo diiwaangeliyay!"),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      setState(() {
+        _cardAddError = "Cillad ayaa ka dhalatay diiwaangelinta database-ka.";
+      });
+    } finally {
+      setState(() {
+        _isAddingCard = false;
+      });
     }
   }
 
@@ -471,7 +696,8 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
           const SizedBox(height: 40),
           _buildSidebarItem(0, Icons.dashboard_outlined, "Dashboard", isDrawer: isDrawer),
           _buildSidebarItem(1, Icons.restaurant_outlined, "Food Management", isDrawer: isDrawer),
-          _buildSidebarItem(2, Icons.settings_outlined, "Settings", isDrawer: isDrawer),
+          _buildSidebarItem(2, Icons.credit_card_outlined, "Loyalty Cards", isDrawer: isDrawer),
+          _buildSidebarItem(3, Icons.settings_outlined, "Settings", isDrawer: isDrawer),
           const Spacer(),
           const Divider(),
           ListTile(
@@ -1003,6 +1229,416 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
     );
   }
 
+  Widget _buildLoyaltyCardsView() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final showSidebar = screenWidth >= 1100;
+    final isDesktop = screenWidth >= 900;
+
+    Widget leftColumn = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 1. CARD SEARCH LOOKUP
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.shade100,
+                blurRadius: 10,
+                spreadRadius: 2,
+              )
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Hubi Nambarka Kaarka (Card Lookup)",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                "Geli 4-ta xaraf ee kaarka si aad u hubiso status-kiisa, balance-ka iyo qofka iska leh.",
+                style: TextStyle(fontSize: 13, color: Colors.black54),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _searchCardController,
+                      decoration: const InputDecoration(
+                        hintText: "Geli 4 xaraf (Tusaale: D101)",
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                      onSubmitted: (_) => _searchCardDetails(),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: _isSearchingCard ? null : _searchCardDetails,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.deepOrange,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      child: _isSearchingCard
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation(Colors.white)),
+                            )
+                          : const Text("Hubi Kaarka"),
+                    ),
+                  ),
+                ],
+              ),
+              if (_cardSearchError != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _cardSearchError!,
+                  style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ],
+              if (_searchedCardData != null) ...[
+                const SizedBox(height: 24),
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            "Kaarka: ${_searchedCardData!['card_number']}",
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _searchedCardData!['status'] == 'active' ? Colors.green.shade100 : Colors.orange.shade100,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              _searchedCardData!['status'].toString().toUpperCase(),
+                              style: TextStyle(
+                                color: _searchedCardData!['status'] == 'active' ? Colors.green : Colors.orange,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text("Lacagta ku jirta (Balance):", style: TextStyle(color: Colors.black54)),
+                          Text(
+                            ((_searchedCardData!['balance'] ?? 0.0) as num).toDouble().toStringAsFixed(2),
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.deepOrange),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text("Qofka iska leh (Owner):", style: TextStyle(color: Colors.black54)),
+                          Text(
+                            _searchedCardOwner ?? "Lama xirin",
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 32),
+                      const Text(
+                        "Lacag Ka Jar Kaarka (Deduct Balance)",
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _deductAmountController,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              decoration: const InputDecoration(
+                                hintText: "Geli lacagta laga jarayo (USD)",
+                                border: OutlineInputBorder(),
+                                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          SizedBox(
+                            height: 40,
+                            child: ElevatedButton(
+                              onPressed: _isDeductingCard ? null : _deductCardBalance,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.redAccent,
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              child: _isDeductingCard
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation(Colors.white)),
+                                    )
+                                  : const Text("Ka Jar"),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // 2. REGISTER NEW CARD
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.shade100,
+                blurRadius: 10,
+                spreadRadius: 2,
+              )
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Register New Physical Card",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                "Diiwaangeli kaar cusub adigoo gelinaya 4 xaraf (Tusaale: D101).",
+                style: TextStyle(fontSize: 13, color: Colors.black54),
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: _newCardCodeController,
+                decoration: const InputDecoration(
+                  hintText: "Code-ka Kaarka (Tusaale: D101)",
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+              ),
+              if (_cardAddError != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _cardAddError!,
+                  style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ],
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: _isAddingCard ? null : _registerNewPhysicalCard,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepOrange,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: _isAddingCard
+                      ? const Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation(Colors.white)),
+                          ),
+                        )
+                      : const Text("Diiwaangeli Kaarka Cusub", style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    Widget rightColumn = Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.shade100,
+            blurRadius: 10,
+            spreadRadius: 2,
+          )
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Macamiisha Ugu Dhibcaha Badan (Top Customers)",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            "Liiska 10-ka macmiil ee ugu dhibcaha badan si loo gudoonsiiyo kaarka abaalmarinta.",
+            style: TextStyle(fontSize: 13, color: Colors.black54),
+          ),
+          const SizedBox(height: 24),
+          if (_isLoadingTopLoyalty)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(32.0),
+                child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation(Colors.deepOrange)),
+              ),
+            )
+          else if (_topLoyaltyCustomers.isEmpty)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(32.0),
+                child: Text("Weli wax macaamiil ah lama helin.", style: TextStyle(color: Colors.black38)),
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _topLoyaltyCustomers.length,
+              separatorBuilder: (context, index) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final customer = _topLoyaltyCustomers[index];
+                final String name = customer['name'] ?? "Macmiil aan la aqoon";
+                final double balance = (customer['bonus_balance'] as num?)?.toDouble() ?? 0.0;
+                final String phone = customer['phone'] ?? "N/A";
+
+                String rankPrefix = "${index + 1}. ";
+                if (index == 0) rankPrefix = "🥇 ";
+                if (index == 1) rankPrefix = "🥈 ";
+                if (index == 2) rankPrefix = "🥉 ";
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: Colors.deepOrange.shade50,
+                        child: Text(
+                          rankPrefix.trim(),
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              name,
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                            ),
+                            Text(
+                              phone,
+                              style: const TextStyle(fontSize: 12, color: Colors.black54),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        balance.toStringAsFixed(2),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.deepOrange),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+
+    return Padding(
+      padding: EdgeInsets.all(screenWidth < 600 ? 16 : 32),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                if (!showSidebar) ...[
+                  Builder(
+                    builder: (context) => IconButton(
+                      icon: const Icon(Icons.menu, size: 28),
+                      onPressed: () => Scaffold.of(context).openDrawer(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        "Loyalty Cards & Bonuses",
+                        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                      ),
+                      SizedBox(height: 4),
+                      Text("Maamul kaararka physical-ka ah, baaritaanka, raadinta macaamiisha, iyo dhimista balance-ka"),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+            if (isDesktop)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 3, child: leftColumn),
+                  const SizedBox(width: 24),
+                  Expanded(flex: 2, child: rightColumn),
+                ],
+              )
+            else
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  leftColumn,
+                  const SizedBox(height: 24),
+                  rightColumn,
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildSettingsView() {
     final screenWidth = MediaQuery.of(context).size.width;
     final showSidebar = screenWidth >= 1100;
@@ -1108,6 +1744,7 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
               children: [
                 _buildDashboardView(),
                 _buildFoodManagementView(),
+                _buildLoyaltyCardsView(),
                 _buildSettingsView(),
               ],
             ),

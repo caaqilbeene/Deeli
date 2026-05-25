@@ -1,5 +1,5 @@
 import 'package:dalab/Home.dart/homepage.dart';
-import 'package:dalab/auth/loginpage.dart';
+import 'package:dalab/onboarding/splash_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -38,8 +38,8 @@ class MyApp extends StatelessWidget {
           if (snapshot.hasData) {
             return const Homepage();
           }
-          // Otherwise, show LoginPage
-          return const LoginPage();
+          // Otherwise, show SplashLogoScreen (Naqshaddii cusbayd ee logo-ga + baaskiilka)
+          return const SplashLogoScreen();
         },
       ),
     );

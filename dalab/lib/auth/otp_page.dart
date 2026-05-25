@@ -81,9 +81,21 @@ class _OTPPageState extends State<OTPPage> {
 
       if (user != null) {
         final prefs = await SharedPreferences.getInstance();
+        String nameToSave = "";
         if (widget.name != null && widget.name!.isNotEmpty) {
-          await user.updateDisplayName(widget.name);
-          await prefs.setString('profile_name', widget.name!);
+          nameToSave = widget.name!.trim().split(RegExp(r'\s+')).map((w) {
+            if (w.isEmpty) return '';
+            return w[0].toUpperCase() + w.substring(1).toLowerCase();
+          }).join(' ');
+        } else if (user.displayName != null && user.displayName!.isNotEmpty) {
+          String rawDisplayName = user.displayName!;
+          if (rawDisplayName.contains('|')) {
+            rawDisplayName = rawDisplayName.split('|')[0];
+          }
+          nameToSave = rawDisplayName.trim().split(RegExp(r'\s+')).map((w) {
+            if (w.isEmpty) return '';
+            return w[0].toUpperCase() + w.substring(1).toLowerCase();
+          }).join(' ');
         }
 
         // Save formatted join date for new signups
@@ -94,14 +106,42 @@ class _OTPPageState extends State<OTPPage> {
 
         // Save to Supabase 'users' table
         try {
-          await Supabase.instance.client.from('users').upsert({
+          final existingRecord = await Supabase.instance.client
+              .from('users')
+              .select('name')
+              .eq('id', user.uid)
+              .maybeSingle();
+
+          String finalNameToSave = nameToSave;
+          if (finalNameToSave.isEmpty && existingRecord != null && existingRecord['name'] != null) {
+            finalNameToSave = existingRecord['name'].toString();
+          }
+
+          if (finalNameToSave.isNotEmpty) {
+            await user.updateDisplayName(finalNameToSave);
+            await prefs.setString('profile_name', finalNameToSave);
+          }
+
+          final Map<String, dynamic> upsertData = {
             'id': user.uid,
             'phone': user.phoneNumber,
-            'name': widget.name ?? user.displayName ?? '',
-            'created_at': user.metadata.creationTime?.toIso8601String() ?? DateTime.now().toIso8601String(),
-          });
+          };
+
+          if (finalNameToSave.isNotEmpty) {
+            upsertData['name'] = finalNameToSave;
+          }
+
+          if (existingRecord == null) {
+            upsertData['created_at'] = user.metadata.creationTime?.toIso8601String() ?? DateTime.now().toIso8601String();
+          }
+
+          await Supabase.instance.client.from('users').upsert(upsertData);
         } catch (supabaseError) {
           print("Supabase user save error (table might not exist yet): $supabaseError");
+          if (nameToSave.isNotEmpty) {
+            await user.updateDisplayName(nameToSave);
+            await prefs.setString('profile_name', nameToSave);
+          }
         }
       }
 
@@ -182,19 +222,11 @@ class _OTPPageState extends State<OTPPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            // ANALYZE INFO: withOpacity is deprecated; use withValues later.
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
         border: Border.all(
           color: focusNodes[index].hasFocus
-              ? Colors.deepOrange
-              : Colors.transparent,
-          width: 2,
+              ? Colors.black
+              : Colors.grey.shade200,
+          width: 1.5,
         ),
       ),
       child: Center(
@@ -234,123 +266,162 @@ class _OTPPageState extends State<OTPPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF9F9F9), // Very light background
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
+      backgroundColor: Colors.white,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 10),
-              const Text(
-                "Verify Your Phone",
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 25),
-              const Text(
-                "We've sent an SMS to:",
-                style: TextStyle(fontSize: 16, color: Colors.black54),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                widget.phone,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                "Enter the verification code sent to your phone number. If you can't find it, try checking your messages.",
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.black54,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 40),
+        child: CustomScrollView(
+          slivers: [
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 10),
 
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(6, otpBox),
-              ),
-
-              const SizedBox(height: 40),
-
-              isVerifying
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        color: Colors.deepOrange,
-                      ),
-                    )
-                  : ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.deepOrange,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size(double.infinity, 55),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                    // ================= HEADER: CENTERING LOGO =================
+                    Center(
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white,
                         ),
-                        elevation: 2,
-                      ),
-                      onPressed: verifyOTP,
-                      child: const Text(
-                        "Verify",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                        child: ClipOval(
+                          child: Image.asset(
+                            "images/logo.jpeg",
+                            width: 140,
+                            height: 140,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Image.asset(
+                                "images/logo.png",
+                                width: 140,
+                                height: 140,
+                                fit: BoxFit.contain,
+                              );
+                            },
+                          ),
                         ),
                       ),
                     ),
+                    const SizedBox(height: 65),
 
-              const SizedBox(height: 30),
-
-              Center(
-                child: Column(
-                  children: [
-                    Text(
-                      seconds > 0
-                          ? "Expires in: ${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}"
-                          : "Code expired",
+                    // ================= HEADINGS =================
+                    const Text(
+                      "Xaqiiji Telefoonkaaga",
                       style: TextStyle(
-                        fontSize: 15,
-                        color: seconds > 0 ? Colors.black54 : Colors.red,
-                        fontWeight: FontWeight.w500,
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      "Waxaan SMS u dirnay lambarka:",
+                      style: TextStyle(fontSize: 14, color: Colors.black54),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      widget.phone,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      "Fadlan geli code-ka xaqiijinta ee laguu soo diray.",
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.black54,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 40),
+
+                    // ================= OTP BOXES =================
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(6, otpBox),
+                    ),
+
+                    // Spacer wuxuu ku riixayaa badhanka iyo linkiga hoos
+                    const Spacer(),
+                    const SizedBox(height: 30),
+
+                    // ================= VERIFY BUTTON (FLAT BLACK) =================
+                    isVerifying
+                        ? const Center(
+                            child: CircularProgressIndicator(
+                              color: Colors.black,
+                            ),
+                          )
+                        : ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.black,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size(double.infinity, 54),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 0,
+                            ),
+                            onPressed: verifyOTP,
+                            child: const Text(
+                              "Verify",
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                    const SizedBox(height: 16),
+
+                    // ================= COUNTDOWN & RESEND LINK =================
+                    Center(
+                      child: Column(
+                        children: [
+                          Text(
+                            seconds > 0
+                                ? "Wuxuu dhacayaa: ${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}"
+                                : "Code-ku waa dhacay",
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: seconds > 0 ? Colors.black54 : Colors.red,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextButton(
+                            onPressed: seconds == 0 ? resendOTP : null,
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.black87,
+                              padding: EdgeInsets.zero,
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: Text(
+                              "Resend OTP",
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: seconds == 0 ? Colors.black87 : Colors.grey,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 10),
-                    TextButton(
-                      onPressed: seconds == 0 ? resendOTP : null,
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.deepOrange,
-                      ),
-                      child: Text(
-                        "Resend OTP",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: seconds == 0 ? Colors.deepOrange : Colors.grey,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

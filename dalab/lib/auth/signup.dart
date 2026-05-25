@@ -350,6 +350,7 @@ import 'package:dalab/auth/loginpage.dart';
 import 'package:dalab/auth/otp_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class Signup extends StatefulWidget {
   const Signup({super.key});
@@ -363,20 +364,13 @@ class _HomePageState extends State<Signup> {
   final SignUpFormKey = GlobalKey<FormState>();
   final TextEditingController FullNameController = TextEditingController();
   final TextEditingController phoneController = TextEditingController();
-  final TextEditingController PasswordController = TextEditingController();
-  final TextEditingController ConfirmPasswordController =
-      TextEditingController();
 
   bool isLoading = false;
-  bool isPassword = false;
-  bool isConfirmPassword = false;
 
   @override
   void dispose() {
     FullNameController.dispose();
     phoneController.dispose();
-    PasswordController.dispose();
-    ConfirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -386,41 +380,89 @@ class _HomePageState extends State<Signup> {
 
     setState(() => isLoading = true);
 
+    // ================= PHONE NUMBER FORMATTING =================
+    String inputPhone = phoneController.text.trim();
+    String finalPhone = inputPhone;
+    if (!inputPhone.startsWith("+")) {
+      if (inputPhone.startsWith("0")) {
+        inputPhone = inputPhone.substring(1);
+      }
+      finalPhone = "+252$inputPhone";
+    }
+
+    // ================= CHECK PHONE NUMBER UNIQUENESS =================
+    try {
+      final existingUser = await Supabase.instance.client
+          .from('users')
+          .select('id')
+          .eq('phone', finalPhone)
+          .maybeSingle();
+
+      if (existingUser != null) {
+        setState(() => isLoading = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                "Lambarkan horay ayaa loo diiwaangeliyay. Fadlan dooro lambar kale.",
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+    } catch (e) {
+      print("Error checking phone uniqueness: $e");
+      setState(() => isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+        );
+      }
+      return;
+    }
+
     await FirebaseAuth.instance.verifyPhoneNumber(
-      phoneNumber: phoneController.text.trim(),
+      phoneNumber: finalPhone,
 
       verificationCompleted: (PhoneAuthCredential credential) async {
         await FirebaseAuth.instance.signInWithCredential(credential);
-
-        // ANALYZE INFO: context is used after await; app can work, but mounted check is safer.
+        if (!mounted) return;
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text("Auto Verified")));
       },
 
       verificationFailed: (FirebaseAuthException e) {
+        if (!mounted) return;
+        setState(() => isLoading = false);
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(e.message ?? "Error")));
       },
 
       codeSent: (String verificationId, int? resendToken) {
+        if (!mounted) return;
+        setState(() => isLoading = false);
+        final formattedName = _capitalizeName(FullNameController.text);
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) => OTPPage(
               verificationId: verificationId,
-              phone: phoneController.text.trim(),
-              name: FullNameController.text.trim(),
+              phone: finalPhone,
+              name: formattedName,
             ),
           ),
         );
       },
 
-      codeAutoRetrievalTimeout: (String verificationId) {},
+      codeAutoRetrievalTimeout: (String verificationId) {
+        if (!mounted) return;
+        setState(() => isLoading = false);
+      },
     );
-
-    setState(() => isLoading = false);
   }
 
   // ================= UI =================
@@ -428,233 +470,359 @@ class _HomePageState extends State<Signup> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SingleChildScrollView(
-        child: Container(
-          margin: EdgeInsets.only(top: 50, left: 20, right: 20),
-          child: Column(
-            children: [
-              SizedBox(height: 20),
-              Container(
-                width: MediaQuery.of(context).size.width,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
+      body: SafeArea(
+        child: CustomScrollView(
+          slivers: [
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 20,
                 ),
-                child: Form(
-                  key: SignUpFormKey,
-                  child: Container(
-                    margin: EdgeInsets.only(top: 50, left: 15, right: 15),
-                    child: Column(
-                      children: [
-                        Image.asset("images/logo.png", width: 90, height: 90),
-                        SizedBox(height: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 10),
 
-                        Text(
-                          "Create your account",
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.deepOrange,
+                    // ================= HEADER: CENTERING LOGO =================
+                    Center(
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white,
+                        ),
+                        child: ClipOval(
+                          child: Image.asset(
+                            "images/logo.jpeg",
+                            width: 140,
+                            height: 140,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Image.asset(
+                                "images/logo.png",
+                                width: 140,
+                                height: 140,
+                                fit: BoxFit.contain,
+                              );
+                            },
                           ),
                         ),
-                        SizedBox(height: 20),
-                        TextFormField(
-                          controller: FullNameController,
-                          // ===== NAME AUTO CAPITALIZATION START =====
-                          textCapitalization: TextCapitalization.words,
-                          onChanged: (value) {
-                            final formatted = _capitalizeName(value);
-                            if (formatted == value || value.endsWith(' ')) {
-                              return;
-                            }
-                            FullNameController.value = TextEditingValue(
-                              text: formatted,
-                              selection: TextSelection.collapsed(
-                                offset: formatted.length,
-                              ),
-                            );
-                          },
-                          // ===== NAME AUTO CAPITALIZATION END =====
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return "Enter Full Name";
-                            }
-                            return null;
-                          },
-                          decoration: InputDecoration(
-                            hintText: "Full Name",
-                            prefixIcon: Icon(
-                              Icons.person,
-                              color: Colors.deepOrange,
-                            ),
-                            border: OutlineInputBorder(
-                              borderSide: BorderSide(color: Colors.deepOrange),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                        ),
-                        SizedBox(height: 20),
-
-                        // ================= PHONE =================
-                        TextFormField(
-                          controller: phoneController,
-                          keyboardType: TextInputType.phone,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return "Enter phone number";
-                            }
-                            if (!value.startsWith("+")) {
-                              return "Use format +252...";
-                            }
-                            return null;
-                          },
-                          decoration: InputDecoration(
-                            hintText: "+252xxxxxxxxx",
-                            prefixIcon: Icon(
-                              Icons.phone,
-                              color: Colors.deepOrange,
-                            ),
-                            border: OutlineInputBorder(
-                              borderSide: BorderSide(color: Colors.deepOrange),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                        ),
-
-                        SizedBox(height: 20),
-
-                        // ================= PASSWORD =================
-                        TextFormField(
-                          controller: PasswordController,
-                          obscureText: !isPassword,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return "Enter password";
-                            }
-                            if (value.length < 8) {
-                              return "Min 8 characters";
-                            }
-                            return null;
-                          },
-                          decoration: InputDecoration(
-                            hintText: "Password",
-                            prefixIcon: Icon(
-                              Icons.lock,
-                              color: Colors.deepOrange,
-                            ),
-                            suffixIcon: IconButton(
-                              onPressed: () {
-                                setState(() {
-                                  isPassword = !isPassword;
-                                });
-                              },
-                              icon: Icon(
-                                isPassword
-                                    ? Icons.visibility
-                                    : Icons.visibility_off,
-                                color: Colors.deepOrange,
-                              ),
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                        ),
-
-                        SizedBox(height: 20),
-
-                        // ================= CONFIRM PASSWORD =================
-                        TextFormField(
-                          controller: ConfirmPasswordController,
-                          obscureText: !isConfirmPassword,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return "Confirm password";
-                            }
-                            if (value != PasswordController.text) {
-                              return "Passwords do not match";
-                            }
-                            return null;
-                          },
-                          decoration: InputDecoration(
-                            hintText: "Confirm password",
-                            prefixIcon: Icon(
-                              Icons.lock,
-                              color: Colors.deepOrange,
-                            ),
-                            suffixIcon: IconButton(
-                              onPressed: () {
-                                setState(() {
-                                  isConfirmPassword = !isConfirmPassword;
-                                });
-                              },
-                              icon: Icon(
-                                isConfirmPassword
-                                    ? Icons.visibility
-                                    : Icons.visibility_off,
-                                color: Colors.deepOrange,
-                              ),
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                        ),
-
-                        SizedBox(height: 40),
-
-                        // ================= BUTTON =================
-                        ElevatedButton(
-                          onPressed: isLoading ? null : sendOTP,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.deepOrange,
-                            minimumSize: Size(double.infinity, 50),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            foregroundColor: Colors.white,
-                          ),
-                          child: isLoading
-                              ? CircularProgressIndicator(color: Colors.white)
-                              : Text(
-                                  "Send OTP",
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                        ),
-
-                        SizedBox(height: 20),
-
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text("Already have an account?"),
-                            SizedBox(width: 10),
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => LoginPage(),
-                                  ),
-                                );
-                              },
-                              child: Text(
-                                "Sign in",
-                                style: TextStyle(color: Colors.black),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 65),
+
+                    // ================= HEADINGS =================
+                    const Text(
+                      "Sameyso Koonto",
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      "ku diiwaan geli lambarkaaga telefoonka",
+                      style: TextStyle(fontSize: 14, color: Colors.black54),
+                    ),
+                    const SizedBox(height: 30),
+
+                    // ================= FORM =================
+                    Form(
+                      key: SignUpFormKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // --- FULL NAME ---
+                          const Text(
+                            "Geli magacaaga oo buuxa",
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: FullNameController,
+                            textCapitalization: TextCapitalization.words,
+                            onChanged: (value) {
+                              final formatted = _capitalizeName(value);
+                              if (formatted == value || value.endsWith(' ')) {
+                                return;
+                              }
+                              FullNameController.value = TextEditingValue(
+                                text: formatted,
+                                selection: TextSelection.collapsed(
+                                  offset: formatted.length,
+                                ),
+                              );
+                            },
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return "Enter Full Name";
+                              }
+                              return null;
+                            },
+                            decoration: InputDecoration(
+                              hintText: "Full Name",
+                              hintStyle: const TextStyle(color: Colors.black38),
+                              prefixIcon: const Icon(
+                                Icons.person_outline_rounded,
+                                color: Colors.black54,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 16,
+                              ),
+                              border: OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: Colors.grey.shade200,
+                                  width: 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: Colors.grey.shade200,
+                                  width: 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderSide: const BorderSide(
+                                  color: Colors.deepOrange,
+                                  width: 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              errorBorder: OutlineInputBorder(
+                                borderSide: const BorderSide(
+                                  color: Colors.black87,
+                                  width: 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              focusedErrorBorder: OutlineInputBorder(
+                                borderSide: const BorderSide(
+                                  color: Colors.black,
+                                  width: 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+
+                          // --- PHONE LABEL ---
+                          const Text(
+                            "Geli lambarkaaga",
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+
+                          // --- PHONE FIELD WITH SOMALI FLAG ---
+                          TextFormField(
+                            controller: phoneController,
+                            keyboardType: TextInputType.phone,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return "Geli lambarkaaga telefoonka";
+                              }
+                              String val = value.trim();
+                              if (val.startsWith("+")) {
+                                if (!val.startsWith("+252")) {
+                                  return "Fadlan isticmaal lambar Somali ah (+252)";
+                                }
+                                val = val.substring(4);
+                              } else if (val.startsWith("0")) {
+                                val = val.substring(1);
+                              }
+                              if (val.length < 7 || val.length > 10) {
+                                return "Fadlan geli lambar telefoon oo sax ah";
+                              }
+                              return null;
+                            },
+                            decoration: InputDecoration(
+                              hintText: "61XXXXXXX",
+                              hintStyle: const TextStyle(color: Colors.black38),
+                              prefixIcon: Padding(
+                                padding: const EdgeInsets.only(
+                                  left: 12,
+                                  right: 8,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 28,
+                                      height: 18,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF4189DD),
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                      child: const Center(
+                                        child: Icon(
+                                          Icons.star,
+                                          color: Colors.white,
+                                          size: 8,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    const Icon(
+                                      Icons.arrow_drop_down_rounded,
+                                      color: Colors.black54,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Container(
+                                      width: 1,
+                                      height: 22,
+                                      color: Colors.grey.shade300,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Text(
+                                      "+252",
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 16,
+                              ),
+                              border: OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: Colors.grey.shade200,
+                                  width: 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: Colors.grey.shade200,
+                                  width: 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderSide: const BorderSide(
+                                  color: Colors.deepOrange,
+                                  width: 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              errorBorder: OutlineInputBorder(
+                                borderSide: const BorderSide(
+                                  color: Colors.black87,
+                                  width: 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              focusedErrorBorder: OutlineInputBorder(
+                                borderSide: const BorderSide(
+                                  color: Colors.black,
+                                  width: 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Spacer wuxuu ku riixayaa badhanka iyo linkiga hoos ee shaashadda
+                    const Spacer(),
+                    const SizedBox(height: 30),
+
+                    // ================= SEND OTP BUTTON (FLAT BLACK) =================
+                    ElevatedButton(
+                      onPressed: isLoading ? null : sendOTP,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        disabledBackgroundColor:
+                            Colors.black, // Wali madow marka loading
+                        disabledForegroundColor: Colors.white, // Spinner cadaan
+                        minimumSize: const Size(double.infinity, 54),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                      ),
+                      child: isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text(
+                              "Send OTP",
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // ================= ALREADY HAVE AN ACCOUNT LINK (NOW BELOW THE BUTTON) =================
+                    Center(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text(
+                            "Horay ma u lahayd koonto? ",
+                            style: TextStyle(
+                              color: Colors.black54,
+                              fontSize: 14,
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const LoginPage(),
+                                ),
+                              );
+                            },
+                            child: const Text(
+                              "Soo gal",
+                              style: TextStyle(
+                                color:
+                                    Colors.black87, // Black link as requested
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                decoration: TextDecoration
+                                    .underline, // Underlined for premium link feel
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

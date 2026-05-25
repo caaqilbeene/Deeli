@@ -308,6 +308,7 @@ import 'package:dalab/auth/signup.dart';
 import 'package:dalab/auth/otp_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -334,15 +335,60 @@ class _LoginState extends State<LoginPage> {
 
     setState(() => isLoading = true);
 
+    // ================= PHONE NUMBER FORMATTING (FORMATKA TELEFOONKA) =================
+    // Haddii user-ku uu qoro lambarka isagoo aan wadan +252, waxaan u habeyneynaa inaan ku darno +252.
+    // Sidoo kale haddii uu lambarku ku bilaabmo eber '0', waa laga saarayaa eberka ka hor intaan +252 lagu darin.
+    String inputPhone = phoneController.text.trim();
+    String finalPhone = inputPhone;
+    if (!inputPhone.startsWith("+")) {
+      if (inputPhone.startsWith("0")) {
+        inputPhone = inputPhone.substring(1);
+      }
+      finalPhone = "+252$inputPhone";
+    }
+
+    // ================= CHECK USER EXISTS IN DATABASE =================
+    try {
+      final existingUser = await Supabase.instance.client
+          .from('users')
+          .select('id')
+          .eq('phone', finalPhone)
+          .maybeSingle();
+
+      if (existingUser == null) {
+        setState(() => isLoading = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                "Akoon-kan ma jiro. Fadlan marka hore is-diiwaangeli.",
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+    } catch (e) {
+      print("Error checking user existence: $e");
+      setState(() => isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+        );
+      }
+      return;
+    }
+
     await FirebaseAuth.instance.verifyPhoneNumber(
-      phoneNumber: phoneController.text.trim(),
+      phoneNumber: finalPhone,
 
       verificationCompleted: (PhoneAuthCredential credential) async {
         await FirebaseAuth.instance.signInWithCredential(credential);
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Auto Verified Successfully")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Si toos ah ayaa loo xaqiijiyay")),
+        );
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => Homepage()),
@@ -363,10 +409,8 @@ class _LoginState extends State<LoginPage> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => OTPPage(
-              verificationId: verificationId,
-              phone: phoneController.text.trim(),
-            ),
+            builder: (_) =>
+                OTPPage(verificationId: verificationId, phone: finalPhone),
           ),
         );
       },
@@ -383,151 +427,286 @@ class _LoginState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SingleChildScrollView(
-        child: Container(
-          margin: EdgeInsets.only(top: 80, left: 20, right: 20),
-          child: Column(
-            children: [
-              SizedBox(height: 20),
-              Container(
-                width: MediaQuery.of(context).size.width,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
+      body: SafeArea(
+        child: CustomScrollView(
+          slivers: [
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 20,
                 ),
-                child: Form(
-                  key: LoginFormKey,
-                  child: Container(
-                    margin: EdgeInsets.only(top: 50, left: 15, right: 15),
-                    child: Column(
-                      children: [
-                        Image.asset(
-                          "images/logo.png",
-                          width: 90,
-                          height: 90,
-                          fit: BoxFit.cover,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 10),
+
+                    // ================= HEADER: CENTERING LOGO =================
+                    Center(
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white,
                         ),
-                        SizedBox(height: 20),
-                        Text(
-                          "Welcome Back",
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.deepOrange,
+                        child: ClipOval(
+                          child: Image.asset(
+                            // =============================================
+                            // 🖼️ LOGADA LOGIN PAGE
+                            // Haddaad rabto inaad logo beddesho:
+                            // 1. Sawirkaaga cusub ku dhig: images/ folder
+                            // 2. Magacaas halkan ku qor (hoos)
+                            // =============================================
+                            "images/logo.jpeg", // ← HALKAN KA BEDDEL
+                            width: 140,
+                            height: 140,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Image.asset(
+                                "images/logo.png", // ← Backup logo (haddii kore furo waayo)
+                                width: 140,
+                                height: 140,
+                                fit: BoxFit.contain,
+                              );
+                            },
                           ),
                         ),
-                        SizedBox(height: 10),
-                        Text(
-                          "Sign in with your phone number",
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.black54,
-                          ),
-                        ),
-                        SizedBox(height: 40),
-
-                        // ================= PHONE =================
-                        TextFormField(
-                          controller: phoneController,
-                          keyboardType: TextInputType.phone,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return "Enter phone number";
-                            }
-                            if (!value.startsWith("+")) {
-                              return "Use format +252...";
-                            }
-                            return null;
-                          },
-                          decoration: InputDecoration(
-                            hintText: "+252xxxxxxxxx",
-                            prefixIcon: Icon(
-                              Icons.phone,
-                              color: Colors.deepOrange,
-                            ),
-                            border: OutlineInputBorder(
-                              borderSide: BorderSide(color: Colors.deepOrange),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderSide: BorderSide(color: Colors.deepOrange),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderSide: BorderSide(
-                                color: Colors.deepOrange,
-                                width: 2,
-                              ),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                        ),
-
-                        SizedBox(height: 40),
-
-                        // ================= BUTTON =================
-                        ElevatedButton(
-                          onPressed: isLoading ? null : sendOTP,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.deepOrange,
-                            minimumSize: Size(double.infinity, 50),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            foregroundColor: Colors.white,
-                          ),
-                          child: isLoading
-                              ? SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : Text(
-                                  "Login",
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                        ),
-
-                        SizedBox(height: 30),
-
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text("Don't have an account?"),
-                            SizedBox(width: 10),
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(builder: (_) => Signup()),
-                                );
-                              },
-                              child: Text(
-                                "Sign up",
-                                style: TextStyle(
-                                  color: Colors.deepOrange,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 65),
+
+                    // ================= HEADINGS =================
+                    const Text(
+                      "Ku soo dhawaada!",
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      "ku gal lambarkaaga telefoonka",
+                      style: TextStyle(fontSize: 14, color: Colors.black54),
+                    ),
+                    const SizedBox(height: 35),
+
+                    // ================= FORM =================
+                    Form(
+                      key: LoginFormKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Label-ka sare ee telefoonka (Geli lambarkaaga)
+                          const Text(
+                            "Geli lambarkaaga",
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+
+                          // ================= PHONE FIELD WITH SOMALI FLAG =================
+                          TextFormField(
+                            controller: phoneController,
+                            keyboardType: TextInputType.phone,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return "Geli lambarkaaga telefoonka";
+                              }
+                              String val = value.trim();
+                              if (val.startsWith("+")) {
+                                if (!val.startsWith("+252")) {
+                                  return "Fadlan isticmaal lambar Somali ah (+252)";
+                                }
+                                val = val.substring(4);
+                              } else if (val.startsWith("0")) {
+                                val = val.substring(1);
+                              }
+                              if (val.length < 7 || val.length > 10) {
+                                return "Fadlan geli lambar telefoon oo sax ah";
+                              }
+                              return null;
+                            },
+                            decoration: InputDecoration(
+                              hintText: "6XXXXXXXX",
+                              hintStyle: const TextStyle(color: Colors.black38),
+                              // Prefix-ka calanka Soomaaliya, arrow-ka, iyo code-ka +252
+                              prefixIcon: Padding(
+                                padding: const EdgeInsets.only(
+                                  left: 12,
+                                  right: 8,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 28,
+                                      height: 18,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF4189DD),
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                      child: const Center(
+                                        child: Icon(
+                                          Icons.star,
+                                          color: Colors.white,
+                                          size: 8,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    const Icon(
+                                      Icons.arrow_drop_down_rounded,
+                                      color: Colors.black54,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Container(
+                                      width: 1,
+                                      height: 22,
+                                      color: Colors.grey.shade300,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Text(
+                                      "+252",
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 16,
+                              ),
+                              border: OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: Colors.grey.shade200,
+                                  width: 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: Colors.grey.shade200,
+                                  width: 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderSide: const BorderSide(
+                                  color: Colors.deepOrange,
+                                  width: 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              errorBorder: OutlineInputBorder(
+                                borderSide: const BorderSide(
+                                  color: Colors.black87,
+                                  width: 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              focusedErrorBorder: OutlineInputBorder(
+                                borderSide: const BorderSide(
+                                  color: Colors.black,
+                                  width: 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Spacer wuxuu ku riixayaa badhanka iyo linkiga qaybta hoose ee shaashadda (sida mockup-ka)
+                    const Spacer(),
+                    const SizedBox(height: 30),
+
+                    // ================= CONTINUE BUTTON (FLAT BLACK) =================
+                    ElevatedButton(
+                      onPressed: isLoading ? null : sendOTP,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        disabledBackgroundColor:
+                            Colors.black, // Wali madow marka loading
+                        disabledForegroundColor: Colors.white, // Spinner cadaan
+                        minimumSize: const Size(double.infinity, 54),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                      ),
+                      child: isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text(
+                              "Continue",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // ================= DIIWAANGELI LINK (NOW BELOW THE BUTTON) =================
+                    Center(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text(
+                            "Ma laha koonto? ",
+                            style: TextStyle(
+                              color: Colors.black54,
+                              fontSize: 14,
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const Signup(),
+                                ),
+                              );
+                            },
+                            child: const Text(
+                              "Is-diiwaangeli",
+                              style: TextStyle(
+                                color:
+                                    Colors.black87, // Black link as requested
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                decoration: TextDecoration
+                                    .underline, // Underlined for premium link feel
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

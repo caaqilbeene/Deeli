@@ -28,17 +28,22 @@ class _HomepageState extends State<Homepage> {
   int currentIndex = 0;
   File? profileImage;
   String? profileImageUrl;
+  String userName = "Macmiil";
   final ImagePicker picker = ImagePicker();
   final SupabaseClient _supabase = Supabase.instance.client;
 
   @override
   void initState() {
     super.initState();
-    loadProfileImage();
+    loadUserData();
   }
 
-  Future<void> loadProfileImage() async {
+  Future<void> loadUserData() async {
     final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      userName = prefs.getString('profile_name') ?? "Macmiil";
+    });
+
     final profPath = prefs.getString('profile_image_path');
     if (profPath != null && profPath.isNotEmpty) {
       if (profPath.startsWith('http') || profPath.startsWith('https')) {
@@ -63,22 +68,37 @@ class _HomepageState extends State<Homepage> {
       try {
         final data = await _supabase
             .from('users')
-            .select('avatar_url')
+            .select('name, avatar_url')
             .eq('id', user.uid)
             .maybeSingle();
 
-        if (data != null && data['avatar_url'] != null) {
-          final String dbAvatar = data['avatar_url'];
-          if (dbAvatar.isNotEmpty) {
-            setState(() {
-              profileImageUrl = dbAvatar;
-              profileImage = null;
-            });
-            await prefs.setString('profile_image_path', dbAvatar);
+        if (data != null) {
+          final String? dbName = data['name'];
+          final String? dbAvatar = data['avatar_url'];
+
+          setState(() {
+            if (dbName != null && dbName.isNotEmpty) {
+              userName = dbName;
+            }
+            if (dbAvatar != null && dbAvatar.isNotEmpty) {
+              if (profileImage == null || !profileImage!.existsSync()) {
+                profileImageUrl = dbAvatar;
+                profileImage = null;
+              }
+            }
+          });
+
+          if (dbName != null && dbName.isNotEmpty) {
+            await prefs.setString('profile_name', dbName);
+          }
+          if (dbAvatar != null && dbAvatar.isNotEmpty) {
+            if (profileImage == null || !profileImage!.existsSync()) {
+              await prefs.setString('profile_image_path', dbAvatar);
+            }
           }
         }
       } catch (e) {
-        print("Error loading user profile image from Supabase: $e");
+        print("Error loading user data from Supabase: $e");
       }
     }
   }
@@ -101,7 +121,9 @@ class _HomepageState extends State<Homepage> {
             },
           ),
         ),
-      );
+      ).then((_) {
+        loadUserData();
+      });
       return;
     }
     // PROFILE SCREEN NAVIGATION END

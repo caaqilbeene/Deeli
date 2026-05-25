@@ -401,7 +401,7 @@ class _StaffDashboardState extends State<StaffDashboard> {
               final total = order['total_amount'] ?? 0.0;
               final status = order['status'] ?? 'Pending';
               final timeStr = order['created_at'] != null
-                  ? DateFormat('hh:mm a').format(DateTime.parse(order['created_at']))
+                  ? DateFormat('hh:mm a').format(DateTime.parse(order['created_at']).toLocal())
                   : 'N/A';
 
               final isSelected = _selectedOrder != null && _selectedOrder!['id'] == order['id'];

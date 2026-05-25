@@ -1,3 +1,4 @@
+/*
 import 'package:dalab/onboarding/oderfood.dart';
 import 'package:flutter/material.dart';
 
@@ -71,3 +72,4 @@ class _onboardingState extends State<onboarding> {
     );
   }
 }
+*/

@@ -15,9 +15,9 @@ class BonusWalletPage extends StatefulWidget {
 }
 
 class _BonusWalletPageState extends State<BonusWalletPage> {
-  double bonusBalance = 150.00; // Virtual bonus balance
+  double bonusBalance = 0.0; // Virtual bonus balance
   double physicalCardBalance = 0.0; // Loaded physical card balance
-  String userName = "Mohamed Ali";
+  String userName = "";
   String? localLogoPath;
   String? remoteLogoUrl;
   String? linkedCardNumber; // Fetched from Supabase (e.g. D101)
@@ -28,7 +28,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
   bool isAdmin = false; // Restricted strictly to super@deeli.com
 
   // Super Admin Leaderboard
-  List<Map<String, dynamic>> topCustomers = []; 
+  List<Map<String, dynamic>> topCustomers = [];
   bool isLoadingTopCustomers = false;
 
   // Super Admin Card Lookup
@@ -53,9 +53,12 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
 
   Future<void> _loadLocalAndRemoteData() async {
     final prefs = await SharedPreferences.getInstance();
+    final user = FirebaseAuth.instance.currentUser;
+    final String? displayName = user?.displayName;
     setState(() {
-      userName = prefs.getString('profile_name') ?? "Mohamed Ali";
-      bonusBalance = prefs.getDouble('bonus_balance') ?? 150.00;
+      final rawName = prefs.getString('profile_name') ?? (displayName ?? "");
+      userName = rawName.contains('|') ? rawName.split('|')[0] : rawName;
+      bonusBalance = prefs.getDouble('bonus_balance') ?? 0.0;
       localLogoPath = prefs.getString('restaurant_logo_path');
       linkedCardNumber = prefs.getString('linked_card_number');
     });
@@ -73,7 +76,6 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
     });
 
     // Fetch live data from Supabase
-    final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       // Check if current user is the super administrator
       final String? email = user.email;
@@ -94,7 +96,8 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
             .maybeSingle();
 
         if (data != null) {
-          final double dbBalance = (data['bonus_balance'] as num?)?.toDouble() ?? bonusBalance;
+          final double dbBalance =
+              (data['bonus_balance'] as num?)?.toDouble() ?? bonusBalance;
           final String? dbCard = data['linked_card'] as String?;
           final String? dbName = data['name'] as String?;
 
@@ -246,11 +249,14 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
       return;
     }
 
-    final double currentBal = ((searchCardResult!['balance'] ?? 0.0) as num).toDouble();
+    final double currentBal = ((searchCardResult!['balance'] ?? 0.0) as num)
+        .toDouble();
     if (amount > currentBal) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Digniin: Lacagta ku jirta kaarka ayaa ka yar inta aad jarayso!"),
+          content: Text(
+            "Digniin: Lacagta ku jirta kaarka ayaa ka yar inta aad jarayso!",
+          ),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -286,7 +292,9 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Masha Allah, ${amount.toStringAsFixed(2)} si guul leh ayaa looga jaray kaarka!"),
+            content: Text(
+              "Masha Allah, ${amount.toStringAsFixed(2)} si guul leh ayaa looga jaray kaarka!",
+            ),
             backgroundColor: Colors.green,
           ),
         );
@@ -295,7 +303,9 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Cillad ayaa dhacday intii lacagta laga jarayay kaarka."),
+            content: Text(
+              "Cillad ayaa dhacday intii lacagta laga jarayay kaarka.",
+            ),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -318,9 +328,9 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
 
       try {
         final directory = await getApplicationDocumentsDirectory();
-        final permanentFile = await File(pickedFile.path).copy(
-          '${directory.path}/restaurant_logo.png',
-        );
+        final permanentFile = await File(
+          pickedFile.path,
+        ).copy('${directory.path}/restaurant_logo.png');
 
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('restaurant_logo_path', permanentFile.path);
@@ -331,21 +341,28 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
 
         await Supabase.instance.client.storage
             .from('avatars')
-            .upload('restaurant_logo.png', permanentFile, fileOptions: const FileOptions(upsert: true));
+            .upload(
+              'restaurant_logo.png',
+              permanentFile,
+              fileOptions: const FileOptions(upsert: true),
+            );
 
         final String publicUrl = Supabase.instance.client.storage
             .from('avatars')
             .getPublicUrl('restaurant_logo.png');
 
         setState(() {
-          remoteLogoUrl = "$publicUrl?t=${DateTime.now().millisecondsSinceEpoch}";
+          remoteLogoUrl =
+              "$publicUrl?t=${DateTime.now().millisecondsSinceEpoch}";
           isUploadingLogo = false;
         });
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text("Astaanta maqaayadda si guul leh ayaa loo beddelay!"),
+              content: Text(
+                "Astaanta maqaayadda si guul leh ayaa loo beddelay!",
+              ),
               backgroundColor: Colors.green,
             ),
           );
@@ -395,18 +412,20 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
         throw "Kaarkaan mar hore ayaa la isticmaalay ama waa la xannibay!";
       }
 
-      final double initialCardBalance = (cardData['balance'] as num?)?.toDouble() ?? 0.0;
+      final double initialCardBalance =
+          (cardData['balance'] as num?)?.toDouble() ?? 0.0;
 
       // 2. Link the card to this user in physical_cards
-      await Supabase.instance.client.from('physical_cards').update({
-        'status': 'active',
-        'linked_user_id': user.uid,
-      }).eq('card_number', inputCard);
+      await Supabase.instance.client
+          .from('physical_cards')
+          .update({'status': 'active', 'linked_user_id': user.uid})
+          .eq('card_number', inputCard);
 
       // 3. Update user profile
-      await Supabase.instance.client.from('users').update({
-        'linked_card': inputCard,
-      }).eq('id', user.uid);
+      await Supabase.instance.client
+          .from('users')
+          .update({'linked_card': inputCard})
+          .eq('id', user.uid);
 
       // 4. Update locally
       final prefs = await SharedPreferences.getInstance();
@@ -421,7 +440,9 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Masha Allah, Kaarkaaga physical-ka ah si guul leh ayaa loogu xiray koontadaada!"),
+            content: Text(
+              "Masha Allah, Kaarkaaga physical-ka ah si guul leh ayaa loogu xiray koontadaada!",
+            ),
             backgroundColor: Colors.green,
           ),
         );
@@ -432,15 +453,21 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
       });
       if (mounted) {
         // User friendly Somali error messages (no database codes displayed)
-        String userFriendlyError = "Fadlan geli kaar sax ah oo ka diiwaangashan maqaayadda!";
+        String userFriendlyError =
+            "Fadlan geli kaar sax ah oo ka diiwaangashan maqaayadda!";
         final String errorStr = e.toString().toLowerCase();
 
-        if (errorStr.contains("laguma hayo") || errorStr.contains("kuma jiro")) {
-          userFriendlyError = "Kaarkaan kuma jiro diiwaanka. Fadlan hubi nambarka aad gelisay!";
-        } else if (errorStr.contains("mar hore") || errorStr.contains("la isticmaalay")) {
-          userFriendlyError = "Kaarkaan mar hore ayaa loo isticmaalay koonto kale!";
+        if (errorStr.contains("laguma hayo") ||
+            errorStr.contains("kuma jiro")) {
+          userFriendlyError =
+              "Kaarkaan kuma jiro diiwaanka. Fadlan hubi nambarka aad gelisay!";
+        } else if (errorStr.contains("mar hore") ||
+            errorStr.contains("la isticmaalay")) {
+          userFriendlyError =
+              "Kaarkaan mar hore ayaa loo isticmaalay koonto kale!";
         } else if (errorStr.contains("balance does not exist")) {
-          userFriendlyError = "Kaarkaan lama xaqiijin karo (balance column is missing). Fadlan la xiriir maamulka!";
+          userFriendlyError =
+              "Kaarkaan lama xaqiijin karo (balance column is missing). Fadlan la xiriir maamulka!";
         }
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -479,9 +506,10 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
 
     try {
       // 1. Reset user digital balance in the database
-      await Supabase.instance.client.from('users').update({
-        'bonus_balance': newBalance,
-      }).eq('id', user.uid);
+      await Supabase.instance.client
+          .from('users')
+          .update({'bonus_balance': newBalance})
+          .eq('id', user.uid);
 
       // 2. Fetch current balance of physical card to increment it
       final cardRes = await Supabase.instance.client
@@ -498,9 +526,10 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
       final double newCardBalance = currentCardBalance + withdrawAmount;
 
       // 3. Update the physical card's balance in Supabase
-      await Supabase.instance.client.from('physical_cards').update({
-        'balance': newCardBalance,
-      }).eq('card_number', linkedCardNumber!);
+      await Supabase.instance.client
+          .from('physical_cards')
+          .update({'balance': newCardBalance})
+          .eq('card_number', linkedCardNumber!);
 
       // Save locally
       final prefs = await SharedPreferences.getInstance();
@@ -515,7 +544,9 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Masha Allah, ${withdrawAmount.toStringAsFixed(2)} bonus oo dhan waxaa lagu shubay kaarkaaga, haddana eber (0) ayuu ka bilaabanayaa!"),
+            content: Text(
+              "Masha Allah, ${withdrawAmount.toStringAsFixed(2)} bonus oo dhan waxaa lagu shubay kaarkaaga, haddana eber (0) ayuu ka bilaabanayaa!",
+            ),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 4),
           ),
@@ -528,7 +559,9 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Cillad ka dhalatay kaydinta database-ka: Kaarkaaga lama cusboonaysiin karo."),
+            content: Text(
+              "Cillad ka dhalatay kaydinta database-ka: Kaarkaaga lama cusboonaysiin karo.",
+            ),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -545,7 +578,8 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
       logoImage = NetworkImage(remoteLogoUrl!);
     }
 
-    final bool hasLinkedCard = linkedCardNumber != null && linkedCardNumber!.isNotEmpty;
+    final bool hasLinkedCard =
+        linkedCardNumber != null && linkedCardNumber!.isNotEmpty;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -569,12 +603,17 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
       body: isLoadingData
           ? const Center(
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF455A64)), // BlueGrey loader
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Color(0xFF455A64),
+                ), // BlueGrey loader
               ),
             )
           : SingleChildScrollView(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 16,
+                ),
                 child: Form(
                   key: _formKey,
                   child: Column(
@@ -599,7 +638,10 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                             ),
                           ],
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -626,8 +668,17 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                                   ? Image(
                                                       image: logoImage,
                                                       fit: BoxFit.cover,
-                                                      errorBuilder: (context, error, stackTrace) =>
-                                                          const Icon(Icons.restaurant, color: Color(0xFF455A64)),
+                                                      errorBuilder:
+                                                          (
+                                                            context,
+                                                            error,
+                                                            stackTrace,
+                                                          ) => const Icon(
+                                                            Icons.restaurant,
+                                                            color: Color(
+                                                              0xFF455A64,
+                                                            ),
+                                                          ),
                                                     )
                                                   : const Icon(
                                                       Icons.restaurant,
@@ -642,7 +693,10 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                               height: 32,
                                               child: CircularProgressIndicator(
                                                 strokeWidth: 2,
-                                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF455A64)),
+                                                valueColor:
+                                                    AlwaysStoppedAnimation<
+                                                      Color
+                                                    >(Color(0xFF455A64)),
                                               ),
                                             )
                                           else if (isAdmin)
@@ -650,7 +704,9 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                               bottom: 0,
                                               right: 0,
                                               child: Container(
-                                                padding: const EdgeInsets.all(1),
+                                                padding: const EdgeInsets.all(
+                                                  1,
+                                                ),
                                                 decoration: const BoxDecoration(
                                                   color: Colors.black54,
                                                   shape: BoxShape.circle,
@@ -666,7 +722,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                       ),
                                       const SizedBox(width: 8),
                                       const Text(
-                                        "DEELI",
+                                        "DAASHI",
                                         style: TextStyle(
                                           color: Colors.white,
                                           fontWeight: FontWeight.bold,
@@ -767,7 +823,8 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   const Text(
                                     "Kaarkaaga Physical-ka ah",
@@ -778,7 +835,10 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                     ),
                                   ),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: Colors.green.shade100,
                                       borderRadius: BorderRadius.circular(12),
@@ -796,11 +856,15 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                               ),
                               const Divider(height: 24),
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   const Text(
                                     "Nambarka:",
-                                    style: TextStyle(color: Colors.black54, fontSize: 13),
+                                    style: TextStyle(
+                                      color: Colors.black54,
+                                      fontSize: 13,
+                                    ),
                                   ),
                                   Text(
                                     linkedCardNumber!,
@@ -814,11 +878,15 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                               ),
                               const SizedBox(height: 10),
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   const Text(
                                     "Lacagta ku jirta (Balance):",
-                                    style: TextStyle(color: Colors.black54, fontSize: 13),
+                                    style: TextStyle(
+                                      color: Colors.black54,
+                                      fontSize: 13,
+                                    ),
                                   ),
                                   Text(
                                     physicalCardBalance.toStringAsFixed(2),
@@ -838,7 +906,9 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
 
                       // 3. ACTION SECTION
                       Text(
-                        hasLinkedCard ? "Withdraw to Card" : "Link Physical Card",
+                        hasLinkedCard
+                            ? "Withdraw to Card"
+                            : "Link Physical Card",
                         style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
@@ -876,14 +946,21 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                         textCapitalization: TextCapitalization.characters,
                         decoration: InputDecoration(
                           hintText: "Geli 4 xaraf/nambar (Tusaale: D101)",
-                          prefixIcon: const Icon(CupertinoIcons.creditcard, color: Color(0xFF455A64)),
+                          prefixIcon: const Icon(
+                            CupertinoIcons.creditcard,
+                            color: Color(0xFF455A64),
+                          ),
                           filled: true,
-                          fillColor: hasLinkedCard ? Colors.grey.shade200 : Colors.grey.shade100,
+                          fillColor: hasLinkedCard
+                              ? Colors.grey.shade200
+                              : Colors.grey.shade100,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
                             borderSide: BorderSide.none,
                           ),
-                          contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 16,
+                          ),
                         ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
@@ -909,7 +986,9 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                         child: ElevatedButton(
                           onPressed: isProcessingAction
                               ? null
-                              : (hasLinkedCard ? _withdrawBonus : _linkPhysicalCard),
+                              : (hasLinkedCard
+                                    ? _withdrawBonus
+                                    : _linkPhysicalCard),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF37474F),
                             foregroundColor: Colors.white,
@@ -920,7 +999,9 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                           ),
                           child: isProcessingAction
                               ? const CircularProgressIndicator(
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
                                 )
                               : Text(
                                   hasLinkedCard
@@ -950,10 +1031,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                         const SizedBox(height: 4),
                         const Text(
                           "Geli 4-ta xaraf ee kaarka si aad u hubiso haddii uu sax yahay iyo inta ku jirta.",
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.black54,
-                          ),
+                          style: TextStyle(fontSize: 12, color: Colors.black54),
                         ),
                         const SizedBox(height: 16),
                         Row(
@@ -963,7 +1041,8 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                 controller: searchController,
                                 keyboardType: TextInputType.text,
                                 autocorrect: false,
-                                textCapitalization: TextCapitalization.characters,
+                                textCapitalization:
+                                    TextCapitalization.characters,
                                 decoration: InputDecoration(
                                   hintText: "Geli 4 xaraf (Tusaale: D101)",
                                   filled: true,
@@ -972,7 +1051,10 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                     borderRadius: BorderRadius.circular(12),
                                     borderSide: BorderSide.none,
                                   ),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
                                 ),
                               ),
                             ),
@@ -980,7 +1062,9 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                             SizedBox(
                               height: 48,
                               child: ElevatedButton(
-                                onPressed: isSearchingCard ? null : _searchCardDetails,
+                                onPressed: isSearchingCard
+                                    ? null
+                                    : _searchCardDetails,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF37474F),
                                   foregroundColor: Colors.white,
@@ -995,7 +1079,10 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                         height: 20,
                                         child: CircularProgressIndicator(
                                           strokeWidth: 2,
-                                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                Colors.white,
+                                              ),
                                         ),
                                       )
                                     : const Icon(Icons.search),
@@ -1007,7 +1094,11 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                           const SizedBox(height: 8),
                           Text(
                             searchCardError!,
-                            style: const TextStyle(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.w600),
+                            style: const TextStyle(
+                              color: Colors.redAccent,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ],
                         if (searchCardResult != null) ...[
@@ -1024,24 +1115,40 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
                                       "Kaarka: ${searchCardResult!['card_number']}",
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15,
+                                        color: Colors.black87,
+                                      ),
                                     ),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
                                       decoration: BoxDecoration(
-                                        color: searchCardResult!['status'] == 'active'
+                                        color:
+                                            searchCardResult!['status'] ==
+                                                'active'
                                             ? Colors.green.shade100
                                             : Colors.orange.shade100,
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Text(
-                                        searchCardResult!['status'].toString().toUpperCase(),
+                                        searchCardResult!['status']
+                                            .toString()
+                                            .toUpperCase(),
                                         style: TextStyle(
-                                          color: searchCardResult!['status'] == 'active' ? Colors.green : Colors.orange,
+                                          color:
+                                              searchCardResult!['status'] ==
+                                                  'active'
+                                              ? Colors.green
+                                              : Colors.orange,
                                           fontSize: 10,
                                           fontWeight: FontWeight.bold,
                                         ),
@@ -1051,30 +1158,59 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                 ),
                                 const Divider(height: 20),
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
-                                    const Text("Lacagta ku jirta (Balance):", style: TextStyle(fontSize: 13, color: Colors.black54)),
+                                    const Text(
+                                      "Lacagta ku jirta (Balance):",
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.black54,
+                                      ),
+                                    ),
                                     Text(
-                                      ((searchCardResult!['balance'] ?? 0.0) as num).toDouble().toStringAsFixed(2),
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF37474F)),
+                                      ((searchCardResult!['balance'] ?? 0.0)
+                                              as num)
+                                          .toDouble()
+                                          .toStringAsFixed(2),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                        color: Color(0xFF37474F),
+                                      ),
                                     ),
                                   ],
                                 ),
                                 const SizedBox(height: 8),
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
-                                    const Text("Hada ku xiran (Owner):", style: TextStyle(fontSize: 13, color: Colors.black54)),
+                                    const Text(
+                                      "Hada ku xiran (Owner):",
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.black54,
+                                      ),
+                                    ),
                                     Text(
                                       searchCardOwnerName ?? "Lama xirin",
-                                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.black87),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                        color: Colors.black87,
+                                      ),
                                     ),
                                   ],
                                 ),
                                 const Divider(height: 24),
                                 const Text(
                                   "Lacag Ka Jar Kaarka (Deduct Balance)",
-                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                    color: Colors.black87,
+                                  ),
                                 ),
                                 const SizedBox(height: 8),
                                 Row(
@@ -1082,16 +1218,27 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                     Expanded(
                                       child: TextField(
                                         controller: deductController,
-                                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                        keyboardType:
+                                            const TextInputType.numberWithOptions(
+                                              decimal: true,
+                                            ),
                                         decoration: InputDecoration(
                                           hintText: "Geli inta laga jarayo",
                                           filled: true,
                                           fillColor: Colors.white,
                                           border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(8),
-                                            borderSide: BorderSide(color: Colors.grey.shade300),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            borderSide: BorderSide(
+                                              color: Colors.grey.shade300,
+                                            ),
                                           ),
-                                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                horizontal: 12,
+                                                vertical: 8,
+                                              ),
                                         ),
                                       ),
                                     ),
@@ -1099,13 +1246,17 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                     SizedBox(
                                       height: 36,
                                       child: ElevatedButton(
-                                        onPressed: isDeductingCard ? null : _deductCardBalance,
+                                        onPressed: isDeductingCard
+                                            ? null
+                                            : _deductCardBalance,
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: Colors.redAccent,
                                           foregroundColor: Colors.white,
                                           elevation: 0,
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(8),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
                                           ),
                                         ),
                                         child: isDeductingCard
@@ -1114,10 +1265,19 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                                 height: 16,
                                                 child: CircularProgressIndicator(
                                                   strokeWidth: 2,
-                                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                                  valueColor:
+                                                      AlwaysStoppedAnimation<
+                                                        Color
+                                                      >(Colors.white),
                                                 ),
                                               )
-                                            : const Text("Ka Jar", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                            : const Text(
+                                                "Ka Jar",
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
                                       ),
                                     ),
                                   ],
@@ -1141,10 +1301,7 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                         const SizedBox(height: 4),
                         const Text(
                           "Liiska 10-ka macmiil ee ugu dhibcaha badan si aad u guddoonsiiso kaarka abaalmarinta.",
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.black54,
-                          ),
+                          style: TextStyle(fontSize: 12, color: Colors.black54),
                         ),
                         const SizedBox(height: 16),
                         if (isLoadingTopCustomers)
@@ -1152,7 +1309,9 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                             child: Padding(
                               padding: EdgeInsets.all(16.0),
                               child: CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF455A64)),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Color(0xFF455A64),
+                                ),
                               ),
                             ),
                           )
@@ -1171,11 +1330,16 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
                             itemCount: topCustomers.length,
-                            separatorBuilder: (context, index) => const Divider(height: 1),
+                            separatorBuilder: (context, index) =>
+                                const Divider(height: 1),
                             itemBuilder: (context, index) {
                               final customer = topCustomers[index];
-                              final String name = customer['name'] ?? "Macmiil aan la aqoon";
-                              final double balance = (customer['bonus_balance'] as num?)?.toDouble() ?? 0.0;
+                              final String name =
+                                  customer['name'] ?? "Macmiil aan la aqoon";
+                              final double balance =
+                                  (customer['bonus_balance'] as num?)
+                                      ?.toDouble() ??
+                                  0.0;
                               final String phone = customer['phone'] ?? "N/A";
 
                               String rankPrefix = "${index + 1}. ";
@@ -1189,7 +1353,9 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                   backgroundColor: Colors.blueGrey.shade50,
                                   child: Text(
                                     rankPrefix.trim(),
-                                    style: const TextStyle(fontWeight: FontWeight.bold),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
                                 title: Text(
@@ -1201,7 +1367,10 @@ class _BonusWalletPageState extends State<BonusWalletPage> {
                                 ),
                                 subtitle: Text(
                                   phone,
-                                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.black54,
+                                  ),
                                 ),
                                 trailing: Text(
                                   balance.toStringAsFixed(2),
