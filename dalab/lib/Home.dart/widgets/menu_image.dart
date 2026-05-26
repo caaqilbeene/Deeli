@@ -14,6 +14,23 @@ class MenuImage extends StatelessWidget {
     this.fit = BoxFit.cover,
   });
 
+  String _resolveAssetPath(String path) {
+    if (path.startsWith('assets/images/')) {
+      return path.replaceFirst('assets/', '');
+    }
+    if (path.startsWith('assets/')) {
+      final rest = path.replaceFirst('assets/', '');
+      if (rest.startsWith('images/')) {
+        return rest;
+      }
+      return 'images/$rest';
+    }
+    if (path.startsWith('images/')) {
+      return path;
+    }
+    return 'images/$path';
+  }
+
   @override
   Widget build(BuildContext context) {
     final isNetworkImage = imagePath.startsWith('http://') || imagePath.startsWith('https://');
@@ -48,8 +65,9 @@ class MenuImage extends StatelessWidget {
         },
       );
     } else {
+      final resolvedPath = _resolveAssetPath(imagePath);
       return Image.asset(
-        imagePath,
+        resolvedPath,
         height: height,
         width: width,
         fit: fit,
@@ -65,3 +83,4 @@ class MenuImage extends StatelessWidget {
     }
   }
 }
+

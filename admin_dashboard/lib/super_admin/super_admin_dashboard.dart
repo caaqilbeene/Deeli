@@ -488,6 +488,23 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
     _selectedItemToEdit = null;
   }
 
+  String _resolveAdminAssetPath(String path) {
+    if (path.startsWith('assets/images/')) {
+      return path;
+    }
+    if (path.startsWith('assets/')) {
+      final rest = path.replaceFirst('assets/', '');
+      if (rest.startsWith('images/')) {
+        return 'assets/$rest';
+      }
+      return 'assets/images/$rest';
+    }
+    if (path.startsWith('images/')) {
+      return 'assets/$path';
+    }
+    return 'assets/images/$path';
+  }
+
   void _openFoodModal({Map<String, dynamic>? item}) {
     if (item != null) {
       _selectedItemToEdit = item;
@@ -1229,7 +1246,7 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
                                                     Container(color: Colors.grey.shade200, width: 48, height: 48, child: const Icon(Icons.broken_image)),
                                               )
                                             : Image.asset(
-                                                'assets/${item['image_path']}',
+                                                _resolveAdminAssetPath(item['image_path'] ?? ''),
                                                 width: 48,
                                                 height: 48,
                                                 fit: BoxFit.cover,
