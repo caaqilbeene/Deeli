@@ -554,6 +554,7 @@ class _HomepageState extends State<Homepage> {
                                 child: Container(
                                   width: 240,
                                   margin: const EdgeInsets.only(left: 10, right: 5, bottom: 10, top: 5),
+                                  clipBehavior: Clip.antiAlias,
                                   decoration: BoxDecoration(
                                     color: Colors.white,
                                     borderRadius: BorderRadius.circular(24),
@@ -606,7 +607,7 @@ class _HomepageState extends State<Homepage> {
                                       ),
                                       // Details
                                       Padding(
-                                        padding: const EdgeInsets.all(12),
+                                        padding: const EdgeInsets.only(left: 12, right: 12, top: 16, bottom: 12),
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
