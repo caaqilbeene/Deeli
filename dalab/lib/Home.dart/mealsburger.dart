@@ -143,6 +143,7 @@ class _MealsburgerState extends State<Mealsburger> {
                   item.updateQuantityFromCart();
                   return item;
                 }).toList();
+                items.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
                 
                 final filtered = getFilteredItems(items);
                 

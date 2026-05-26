@@ -137,6 +137,7 @@ class _SearchPageState extends State<SearchPage> {
                   item.updateQuantityFromCart();
                   return item;
                 }).toList();
+                allItems.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
                 final filteredItems = getFilteredItems(allItems);
 

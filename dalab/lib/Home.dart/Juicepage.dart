@@ -335,6 +335,7 @@ class _JuicepageState extends State<Juicepage> {
             item.updateQuantityFromCart();
             return item;
           }).toList();
+          items.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
           return ListView.builder(
             padding: const EdgeInsets.all(16),

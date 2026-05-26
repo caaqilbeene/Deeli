@@ -524,6 +524,7 @@ class _HomepageState extends State<Homepage> {
                             item.updateQuantityFromCart();
                             return item;
                           }).toList();
+                          deals.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
                           return ListView.builder(
                             scrollDirection: Axis.horizontal,
