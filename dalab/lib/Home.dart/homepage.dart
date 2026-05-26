@@ -9,7 +9,6 @@ import 'package:dalab/Home.dart/my_orders_page.dart';
 import 'package:dalab/Home.dart/item_details_page.dart';
 import 'package:dalab/models/menu_item.dart';
 import 'package:dalab/Home.dart/widgets/menu_image.dart';
-import 'package:dalab/Home.dart/cart_data.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -597,23 +596,6 @@ class _HomepageState extends State<Homepage> {
                                                 ),
                                               ),
                                             ),
-                                          // Heart Icon
-                                          Positioned(
-                                            top: 12,
-                                            left: 12,
-                                            child: Container(
-                                              padding: const EdgeInsets.all(6),
-                                              decoration: const BoxDecoration(
-                                                color: Colors.white,
-                                                shape: BoxShape.circle,
-                                              ),
-                                              child: const Icon(
-                                                Icons.favorite,
-                                                color: Colors.redAccent,
-                                                size: 16,
-                                              ),
-                                            ),
-                                          ),
                                         ],
                                       ),
                                       // Details
@@ -622,80 +604,21 @@ class _HomepageState extends State<Homepage> {
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            // Title & Add Button Row
-                                            Row(
-                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                              children: [
-                                                Expanded(
-                                                  child: Text(
-                                                    item.name,
-                                                    style: const TextStyle(
-                                                      fontSize: 16,
-                                                      fontWeight: FontWeight.bold,
-                                                      color: Colors.black87,
-                                                    ),
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
-                                                  ),
-                                                ),
-                                                GestureDetector(
-                                                  onTap: () {
-                                                    CartData.addToCart(
-                                                      name: item.name,
-                                                      image: item.imagePath,
-                                                      price: item.price,
-                                                      quantity: 1,
-                                                    );
-                                                    ScaffoldMessenger.of(context).showSnackBar(
-                                                      SnackBar(
-                                                        content: Text(
-                                                          "${item.name} ku daray koomada",
-                                                          style: const TextStyle(color: Colors.white),
-                                                        ),
-                                                        backgroundColor: Colors.orange,
-                                                        duration: const Duration(seconds: 1),
-                                                      ),
-                                                    );
-                                                  },
-                                                  child: Container(
-                                                    padding: const EdgeInsets.all(6),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.deepOrange,
-                                                      borderRadius: BorderRadius.circular(8),
-                                                    ),
-                                                    child: const Icon(
-                                                      Icons.add,
-                                                      color: Colors.white,
-                                                      size: 18,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
+                                            // Title Row
+                                            Text(
+                                              item.name,
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.black87,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
                                             const SizedBox(height: 6),
-                                            // Rating & Delivery Time Row
+                                            // Delivery Time Row
                                             Row(
                                               children: [
-                                                const Icon(
-                                                  Icons.star_half,
-                                                  color: Colors.amber,
-                                                  size: 16,
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  item.rating.toString(),
-                                                  style: const TextStyle(
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: Colors.black54,
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 6),
-                                                const Text(
-                                                  "•",
-                                                  style: TextStyle(color: Colors.black38),
-                                                ),
-                                                const SizedBox(width: 6),
                                                 const Icon(
                                                   Icons.access_time,
                                                   color: Colors.black54,
