@@ -15,6 +15,7 @@ class MenuItem {
   final String deliveryTime;
   final double rating;
   int quantity;
+  final int discount;
 
   MenuItem({
     required this.id,
@@ -31,6 +32,7 @@ class MenuItem {
     this.deliveryTime = '',
     this.rating = 4.5,
     this.quantity = 0,
+    this.discount = 0,
   });
 
   factory MenuItem.fromMap(Map<String, dynamic> map) {
@@ -48,6 +50,7 @@ class MenuItem {
       carbs: map['carbs'] as String? ?? '',
       deliveryTime: map['delivery_time'] as String? ?? '',
       rating: map['rating'] != null ? (map['rating'] as num).toDouble() : 4.5,
+      discount: map['discount'] != null ? (map['discount'] as num).toInt() : 0,
     );
   }
 

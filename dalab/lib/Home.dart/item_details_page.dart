@@ -122,13 +122,29 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
                             ),
                           ),
                         ),
-                        Text(
-                          "\$${totalprice.toStringAsFixed(2)}",
-                          style: const TextStyle(
-                            fontSize: 23,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.deepOrange,
-                          ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              "\$${totalprice.toStringAsFixed(2)}",
+                              style: const TextStyle(
+                                fontSize: 23,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.deepOrange,
+                              ),
+                            ),
+                            if (widget.item.discount > 0) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                "\$${((widget.item.price / (1 - widget.item.discount / 100.0)) * quantity).toStringAsFixed(2)}",
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.black38,
+                                  decoration: TextDecoration.lineThrough,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ],
                     ),

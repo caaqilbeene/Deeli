@@ -34,6 +34,8 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
   final _proteinController = TextEditingController();
   final _fatsController = TextEditingController();
   final _carbsController = TextEditingController();
+  final _deliveryTimeController = TextEditingController();
+  final _discountController = TextEditingController();
 
   Map<String, dynamic>? _selectedItemToEdit;
 
@@ -72,6 +74,8 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
     _proteinController.dispose();
     _fatsController.dispose();
     _carbsController.dispose();
+    _deliveryTimeController.dispose();
+    _discountController.dispose();
 
     _searchCardController.dispose();
     _deductAmountController.dispose();
@@ -403,6 +407,8 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
       'protein': _proteinController.text.trim(),
       'fats': _fatsController.text.trim(),
       'carbs': _carbsController.text.trim(),
+      'delivery_time': _deliveryTimeController.text.trim(),
+      'discount': int.tryParse(_discountController.text.trim()) ?? 0,
     };
 
     try {
@@ -477,6 +483,8 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
     _proteinController.clear();
     _fatsController.clear();
     _carbsController.clear();
+    _deliveryTimeController.clear();
+    _discountController.clear();
     _selectedItemToEdit = null;
   }
 
@@ -492,6 +500,8 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
       _proteinController.text = (item['protein'] ?? '').toString();
       _fatsController.text = (item['fats'] ?? '').toString();
       _carbsController.text = (item['carbs'] ?? '').toString();
+      _deliveryTimeController.text = (item['delivery_time'] ?? '').toString();
+      _discountController.text = (item['discount'] ?? '0').toString();
     } else {
       _clearForm();
     }
@@ -577,6 +587,40 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
                             border: OutlineInputBorder(),
                             hintText: "https://images.unsplash.com/...",
                           ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _deliveryTimeController,
+                          decoration: const InputDecoration(
+                            labelText: "Waqtiga Delivery-ga (Tusaale: 15-20 min)",
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _discountController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: "Qiima Dhimista (%) (Tusaale: 20)",
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (v) {
+                            if (v != null && v.isNotEmpty) {
+                              final val = int.tryParse(v);
+                              if (val == null || val < 0 || val > 100) {
+                                return "Geli boqolley u dhaxaysa 0-100";
+                              }
+                            }
+                            return null;
+                          },
                         ),
                       ),
                     ],

@@ -9,6 +9,7 @@ import 'package:dalab/Home.dart/my_orders_page.dart';
 import 'package:dalab/Home.dart/item_details_page.dart';
 import 'package:dalab/models/menu_item.dart';
 import 'package:dalab/Home.dart/widgets/menu_image.dart';
+import 'package:dalab/Home.dart/cart_data.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -530,56 +531,221 @@ class _HomepageState extends State<Homepage> {
                             itemCount: deals.length,
                             itemBuilder: (context, index) {
                               final item = deals[index];
-                              return Padding(
-                                padding: const EdgeInsets.only(right: 15),
-                                child: Column(
-                                  children: [
-                                    GestureDetector(
-                                      onTap: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) =>
-                                                ItemDetailsPage(item: item),
+                              double originalPrice = item.price;
+                              if (item.discount > 0) {
+                                originalPrice = item.price / (1 - item.discount / 100.0);
+                              }
+
+                              return GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          ItemDetailsPage(item: item),
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  width: 240,
+                                  margin: const EdgeInsets.only(left: 10, right: 5, bottom: 10, top: 5),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(24),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.04),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                    border: Border.all(color: Colors.grey.shade100, width: 1),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      // Image & Badges
+                                      Stack(
+                                        children: [
+                                          ClipRRect(
+                                            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                                            child: MenuImage(
+                                              imagePath: item.imagePath,
+                                              height: 140,
+                                              width: 240,
+                                              fit: BoxFit.cover,
+                                            ),
                                           ),
-                                        );
-                                      },
-                                      child: Container(
-                                        margin: const EdgeInsets.only(left: 10),
-                                        decoration: BoxDecoration(
-                                          color: Colors.grey.shade300,
-                                          borderRadius: BorderRadius.circular(
-                                            20,
+                                          // Discount Tag
+                                          if (item.discount > 0)
+                                            Positioned(
+                                              top: 12,
+                                              right: 12,
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.red,
+                                                  borderRadius: BorderRadius.circular(20),
+                                                ),
+                                                child: Text(
+                                                  "-${item.discount}%",
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          // Heart Icon
+                                          Positioned(
+                                            top: 12,
+                                            left: 12,
+                                            child: Container(
+                                              padding: const EdgeInsets.all(6),
+                                              decoration: const BoxDecoration(
+                                                color: Colors.white,
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: const Icon(
+                                                Icons.favorite,
+                                                color: Colors.redAccent,
+                                                size: 16,
+                                              ),
+                                            ),
                                           ),
-                                        ),
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(
-                                            20,
-                                          ),
-                                          child: MenuImage(
-                                            imagePath: item.imagePath,
-                                            height: 200,
-                                            width: 280,
-                                            fit: BoxFit.cover,
-                                          ),
+                                        ],
+                                      ),
+                                      // Details
+                                      Padding(
+                                        padding: const EdgeInsets.all(12),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            // Title & Add Button Row
+                                            Row(
+                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    item.name,
+                                                    style: const TextStyle(
+                                                      fontSize: 16,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: Colors.black87,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                                GestureDetector(
+                                                  onTap: () {
+                                                    CartData.addToCart(
+                                                      name: item.name,
+                                                      image: item.imagePath,
+                                                      price: item.price,
+                                                      quantity: 1,
+                                                    );
+                                                    ScaffoldMessenger.of(context).showSnackBar(
+                                                      SnackBar(
+                                                        content: Text(
+                                                          "${item.name} ku daray koomada",
+                                                          style: const TextStyle(color: Colors.white),
+                                                        ),
+                                                        backgroundColor: Colors.orange,
+                                                        duration: const Duration(seconds: 1),
+                                                      ),
+                                                    );
+                                                  },
+                                                  child: Container(
+                                                    padding: const EdgeInsets.all(6),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.deepOrange,
+                                                      borderRadius: BorderRadius.circular(8),
+                                                    ),
+                                                    child: const Icon(
+                                                      Icons.add,
+                                                      color: Colors.white,
+                                                      size: 18,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 6),
+                                            // Rating & Delivery Time Row
+                                            Row(
+                                              children: [
+                                                const Icon(
+                                                  Icons.star_half,
+                                                  color: Colors.amber,
+                                                  size: 16,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  item.rating.toString(),
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: Colors.black54,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 6),
+                                                const Text(
+                                                  "•",
+                                                  style: TextStyle(color: Colors.black38),
+                                                ),
+                                                const SizedBox(width: 6),
+                                                const Icon(
+                                                  Icons.access_time,
+                                                  color: Colors.black54,
+                                                  size: 14,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  item.deliveryTime.isNotEmpty ? item.deliveryTime : "15-20 min",
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.black54,
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 8),
+                                            // Price Row
+                                            Row(
+                                              crossAxisAlignment: CrossAxisAlignment.baseline,
+                                              textBaseline: TextBaseline.alphabetic,
+                                              children: [
+                                                // Discounted Price
+                                                Text(
+                                                  "\$${item.price.toStringAsFixed(2)}",
+                                                  style: const TextStyle(
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.deepOrange,
+                                                  ),
+                                                ),
+                                                if (item.discount > 0) ...[
+                                                  const SizedBox(width: 8),
+                                                  // Slashed Original Price
+                                                  Text(
+                                                    "\$${originalPrice.toStringAsFixed(2)}",
+                                                    style: const TextStyle(
+                                                      fontSize: 12,
+                                                      color: Colors.black38,
+                                                      decoration: TextDecoration.lineThrough,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 10),
-                                    SizedBox(
-                                      width: 280,
-                                      child: Text(
-                                        item.name,
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               );
                             },
