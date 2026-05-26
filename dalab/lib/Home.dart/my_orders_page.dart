@@ -237,7 +237,6 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
     final orderId = order['id'] as String;
     final shortId = orderId.substring(0, 5).toUpperCase();
     final status = order['status'] ?? 'Pending';
-    final totalAmount = order['total_amount'] ?? 0.0;
     
     int activeStep = 0; // 0: Placed, 1: Accepted, 2: Cooking, 3: On The Way, 4: Arrived
     if (status == 'Accepted') {
