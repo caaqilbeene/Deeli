@@ -279,7 +279,12 @@ class _HomepageState extends State<Homepage> {
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(16),
-                      child: Image.asset("images/burger-banner-no-fire.png"),
+                      child: Image.asset(
+                        "images/burger-banner-no-fire.png",
+                        height: 160,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
                     ),
                     SizedBox(height: 15),
                     Row(
