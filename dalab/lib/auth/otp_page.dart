@@ -27,7 +27,7 @@ class _OTPPageState extends State<OTPPage> {
   );
   List<FocusNode> focusNodes = List.generate(6, (_) => FocusNode());
 
-  int seconds = 300; // 5 min
+  int seconds = 60; // 5 min
   late String currentVerificationId;
   bool isVerifying = false;
 
@@ -76,32 +76,56 @@ class _OTPPageState extends State<OTPPage> {
         smsCode: code,
       );
 
-      final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+      final userCredential = await FirebaseAuth.instance.signInWithCredential(
+        credential,
+      );
       final user = userCredential.user;
 
       if (user != null) {
         final prefs = await SharedPreferences.getInstance();
         String nameToSave = "";
         if (widget.name != null && widget.name!.isNotEmpty) {
-          nameToSave = widget.name!.trim().split(RegExp(r'\s+')).map((w) {
-            if (w.isEmpty) return '';
-            return w[0].toUpperCase() + w.substring(1).toLowerCase();
-          }).join(' ');
+          nameToSave = widget.name!
+              .trim()
+              .split(RegExp(r'\s+'))
+              .map((w) {
+                if (w.isEmpty) return '';
+                return w[0].toUpperCase() + w.substring(1).toLowerCase();
+              })
+              .join(' ');
         } else if (user.displayName != null && user.displayName!.isNotEmpty) {
           String rawDisplayName = user.displayName!;
           if (rawDisplayName.contains('|')) {
             rawDisplayName = rawDisplayName.split('|')[0];
           }
-          nameToSave = rawDisplayName.trim().split(RegExp(r'\s+')).map((w) {
-            if (w.isEmpty) return '';
-            return w[0].toUpperCase() + w.substring(1).toLowerCase();
-          }).join(' ');
+          nameToSave = rawDisplayName
+              .trim()
+              .split(RegExp(r'\s+'))
+              .map((w) {
+                if (w.isEmpty) return '';
+                return w[0].toUpperCase() + w.substring(1).toLowerCase();
+              })
+              .join(' ');
         }
 
         // Save formatted join date for new signups
         final now = DateTime.now();
-        final months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        final formattedDate = "${now.day} ${months[now.month - 1]}, ${now.year}";
+        final months = [
+          "Jan",
+          "Feb",
+          "Mar",
+          "Apr",
+          "May",
+          "Jun",
+          "Jul",
+          "Aug",
+          "Sep",
+          "Oct",
+          "Nov",
+          "Dec",
+        ];
+        final formattedDate =
+            "${now.day} ${months[now.month - 1]}, ${now.year}";
         await prefs.setString('joined_date', formattedDate);
 
         // Save to Supabase 'users' table
@@ -122,12 +146,16 @@ class _OTPPageState extends State<OTPPage> {
           }
 
           String finalNameToSave = nameToSave;
-          if (finalNameToSave.isEmpty && existingRecord != null && existingRecord['name'] != null) {
+          if (finalNameToSave.isEmpty &&
+              existingRecord != null &&
+              existingRecord['name'] != null) {
             finalNameToSave = existingRecord['name'].toString();
           }
 
           String finalDistrictToSave = "";
-          if (existingRecord != null && existingRecord.containsKey('district') && existingRecord['district'] != null) {
+          if (existingRecord != null &&
+              existingRecord.containsKey('district') &&
+              existingRecord['district'] != null) {
             finalDistrictToSave = existingRecord['district'].toString();
           }
 
@@ -160,7 +188,9 @@ class _OTPPageState extends State<OTPPage> {
           }
 
           if (existingRecord == null) {
-            upsertData['created_at'] = user.metadata.creationTime?.toIso8601String() ?? DateTime.now().toIso8601String();
+            upsertData['created_at'] =
+                user.metadata.creationTime?.toIso8601String() ??
+                DateTime.now().toIso8601String();
           }
 
           try {
@@ -172,7 +202,9 @@ class _OTPPageState extends State<OTPPage> {
             }
           }
         } catch (supabaseError) {
-          print("Supabase user save error (table might not exist yet): $supabaseError");
+          print(
+            "Supabase user save error (table might not exist yet): $supabaseError",
+          );
           if (nameToSave.isNotEmpty) {
             await user.updateDisplayName(nameToSave);
             await prefs.setString('profile_name', nameToSave);
@@ -308,7 +340,10 @@ class _OTPPageState extends State<OTPPage> {
             SliverFillRemaining(
               hasScrollBody: false,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 20,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -443,7 +478,9 @@ class _OTPPageState extends State<OTPPage> {
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
-                                color: seconds == 0 ? Colors.black87 : Colors.grey,
+                                color: seconds == 0
+                                    ? Colors.black87
+                                    : Colors.grey,
                                 decoration: TextDecoration.underline,
                               ),
                             ),

@@ -321,6 +321,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> checkAndShowVerifiedPopup({bool isFromUserAction = false}) async {
     if (!mounted) return;
     if (FirebaseAuth.instance.currentUser == null) return;
+    
     if (isProfileComplete) {
       final prefs = await SharedPreferences.getInstance();
       final hasSeen = prefs.getBool('has_seen_verified_popup') ?? false;
@@ -328,14 +329,18 @@ class _ProfilePageState extends State<ProfilePage> {
         await prefs.setBool('has_seen_verified_popup', true);
         if (isFromUserAction) {
           if (mounted) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                showVerificationSuccessDialog();
-              }
-            });
+            // Sug 300ms si bottom sheet-ka ama sawir-qaaduhu u xirmo si buuxda
+            await Future.delayed(const Duration(milliseconds: 300));
+            if (mounted) {
+              showVerificationSuccessDialog();
+            }
           }
         }
       }
+    } else {
+      // Haddii profile-ku uusan dhammaystirnayn, dib u reset garee flag-ga si uu mustaqbalka u soo bandhigo dialog-ga
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('has_seen_verified_popup', false);
     }
   }
 
