@@ -481,7 +481,7 @@ class _HomepageState extends State<Homepage> {
                     ),
                     SizedBox(height: 20),
                     SizedBox(
-                      height: 300,
+                      height: 335,
                       // width: MediaQuery.of(context).size.width,
                       child: StreamBuilder<List<Map<String, dynamic>>>(
                         stream: _supabase
@@ -564,23 +564,25 @@ class _HomepageState extends State<Homepage> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      // Image & Badges
                                       Stack(
                                         children: [
-                                          ClipRRect(
-                                            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                                            child: MenuImage(
-                                              imagePath: item.imagePath,
-                                              height: 140,
-                                              width: 240,
-                                              fit: BoxFit.cover,
+                                          Padding(
+                                            padding: const EdgeInsets.all(8.0),
+                                            child: ClipRRect(
+                                              borderRadius: BorderRadius.circular(16),
+                                              child: MenuImage(
+                                                imagePath: item.imagePath,
+                                                height: 160,
+                                                width: double.infinity,
+                                                fit: BoxFit.cover,
+                                              ),
                                             ),
                                           ),
                                           // Discount Tag
                                           if (item.discount > 0)
                                             Positioned(
-                                              top: 12,
-                                              right: 12,
+                                              top: 16,
+                                              right: 16,
                                               child: Container(
                                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                                 decoration: BoxDecoration(
