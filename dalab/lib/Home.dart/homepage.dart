@@ -277,6 +277,7 @@ class _HomepageState extends State<Homepage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const SizedBox(height: 15),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(16),
                       child: Image.asset(
