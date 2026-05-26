@@ -429,6 +429,57 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
     );
   }
 
+  void _confirmHideOrder(BuildContext context, String orderId) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text("Tirtir Dalabka", style: TextStyle(fontWeight: FontWeight.bold)),
+          content: const Text(
+            "Ma hubtaa inaad dalabkan ka tirtirto liiskaaga? (Diiwaanka maqaayadda wuu ku sii jiri doonaa).",
+            style: TextStyle(height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Ka laabo", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600)),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                try {
+                  await _supabase
+                      .from('orders')
+                      .update({'user_hidden': true})
+                      .eq('id', orderId);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Dalabka waa laga saaray liiskaaga!"),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text("Cillad ayaa dhacday: Fadlan hubi in database-ka lagu daray column 'user_hidden'"),
+                        backgroundColor: Colors.redAccent,
+                      ),
+                    );
+                  }
+                }
+              },
+              child: const Text("Tirtir", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildTrackingStep({
     required String title,
     required String subtitle,
@@ -520,14 +571,16 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
                   );
                 }
 
-                final orders = snapshot.data;
-                if (orders != null && orders.isNotEmpty) {
+                final allOrders = snapshot.data;
+                if (allOrders != null && allOrders.isNotEmpty) {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
-                    _checkForStatusChanges(orders);
+                    _checkForStatusChanges(allOrders);
                   });
                 }
 
-                if (orders == null || orders.isEmpty) {
+                final orders = allOrders?.where((o) => o['user_hidden'] != true).toList() ?? [];
+
+                if (orders.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -610,26 +663,37 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
                                       color: Colors.black87,
                                     ),
                                   ),
-                                  Container(
-                                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: statusColor.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Icon(statusIcon, size: 14, color: statusColor),
-                                        SizedBox(width: 4),
-                                        Text(
-                                          status,
-                                          style: TextStyle(
-                                            color: statusColor,
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 13,
-                                          ),
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: statusColor.withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(20),
                                         ),
-                                      ],
-                                    ),
+                                        child: Row(
+                                          children: [
+                                            Icon(statusIcon, size: 14, color: statusColor),
+                                            SizedBox(width: 4),
+                                            Text(
+                                              status,
+                                              style: TextStyle(
+                                                color: statusColor,
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      IconButton(
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        icon: const Icon(CupertinoIcons.trash, size: 18, color: Colors.redAccent),
+                                        onPressed: () => _confirmHideOrder(context, orderId),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
